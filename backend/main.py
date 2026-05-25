@@ -158,11 +158,12 @@ def get_watch(anime_id: str):
     progress = db.get_watch_progress(anime_id)
     return progress or {"message": "No progress found"}
 
-@app.post("/watch/{anime_id}")
-def set_watch(anime_id: str, episode_id: str = Query(...)):
-    """Set the last watched episode for an anime."""
-    db.set_watch_progress(anime_id, episode_id)
-    return {"status": "updated", "anime_id": anime_id, "episode_id": episode_id}
+@app.delete("/watch/{anime_id}")
+def delete_watch(anime_id: str, episode_id: str = Query(...)):
+    """Delete watch progress for given anime (ignore episode_id)."""
+    db.delete_watch_progress(anime_id)
+    return {"status": "deleted", "anime_id": anime_id}
+
 
 # Extend anime_detail to store episodes after fetching
 @app.get("/anime/{anime_id}")

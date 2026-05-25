@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
-import { getEpisodeVideo, getAnimeDetail, saveWatchProgress } from '../utils/api.js'
+import { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress } from '../utils/api.js'
 import { useDownloads } from '../hooks/useDownloads.js'
 
 export default function WatchPage() {
   const { animeId, episodeId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  
+
   // Episode list, Anime details and cover
   const [episodes, setEpisodes] = useState(location.state?.episodes || [])
   const [animeTitle, setAnimeTitle] = useState(location.state?.animeTitle || '')
   const [animeImage, setAnimeImage] = useState(location.state?.animeImage || '')
-  
+
   // Stream data
   const [videoUrl, setVideoUrl] = useState('')
   const [offlineUrl, setOfflineUrl] = useState('')
@@ -21,14 +21,14 @@ export default function WatchPage() {
   const [error, setError] = useState(null)
 
   // Download hook
-  const { 
-    isDownloaded, 
-    isDownloading, 
-    getProgress, 
-    startDownload, 
-    cancelDownload, 
-    removeDownload, 
-    getOfflineUrl 
+  const {
+    isDownloaded,
+    isDownloading,
+    getProgress,
+    startDownload,
+    cancelDownload,
+    removeDownload,
+    getOfflineUrl
   } = useDownloads()
 
   // Fetch episodes if missing
@@ -66,7 +66,7 @@ export default function WatchPage() {
             setIsOfflinePlay(true)
             setLoading(false)
             // Save watch progress to backend (ignore errors if offline)
-            saveWatchProgress(animeId, episodeId).catch(() => {})
+            saveWatchProgress(animeId, episodeId).catch(() => { })
           }
           return
         }
@@ -109,6 +109,15 @@ export default function WatchPage() {
     if (ep) {
       navigate(`/watch/${animeId}/${ep.id}`, { state: { episodes, animeTitle, animeImage } })
     }
+  }
+
+  const handleClearProgress = () => {
+    // Remove from localStorage if stored
+    localStorage.removeItem(`watch_${animeId}_${episodeId}`)
+    // Call backend delete
+    deleteWatchProgress(animeId, episodeId).catch(() => {})
+    // Optionally navigate back to home or refresh UI
+    navigate('/')
   }
 
   const currentEpNumber = episodes[currentIdx]?.number || ''
@@ -168,11 +177,23 @@ export default function WatchPage() {
                 OFFLINE PLAYBACK
               </div>
             )}
-            
+
+            {/* Clear progress button */}
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleClearProgress();
+                }}
+                title="Cancella progresso"
+                className="absolute top-2 right-2 z-10 bg-red-600/70 hover:bg-red-600/90 text-white rounded-full w-6 h-6 flex items-center justify-center transition-opacity"
+            >
+                X
+            </button>
             {loading ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center bg-surface/90">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin text-accent mb-4">
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
                 <p className="text-sm text-text font-body">Acquisizione flusso video in corso...</p>
                 <p className="text-xs text-muted font-body mt-1">Stiamo recuperando l'URL aggiornato da AnimeWorld</p>
@@ -181,20 +202,20 @@ export default function WatchPage() {
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface/95">
                 <p className="text-4xl mb-3">⚠️</p>
                 <p className="text-sm font-semibold text-text font-body max-w-md">{error}</p>
-                <a 
+                <a
                   href={`https://www.animeworld.ac/play/${animeId}/${episodeId}`}
-                  target="_blank" 
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="mt-6 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-2">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
                   Apri su AnimeWorld
                 </a>
               </div>
             ) : (
-              <video 
-                src={isOfflinePlay ? offlineUrl : videoUrl} 
-                controls 
-                autoPlay 
+              <video
+                src={isOfflinePlay ? offlineUrl : videoUrl}
+                controls
+                autoPlay
                 playsInline
                 className="w-full h-full"
               />
@@ -214,25 +235,25 @@ export default function WatchPage() {
               <button
                 onClick={handleDownloadClick}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-1.5 border
-                  ${isEpDownloaded 
-                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' 
-                    : isEpDownloading 
-                    ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/20 animate-pulse' 
-                    : 'bg-surface border-border hover:border-accent/40 text-text-dim hover:text-text'}`}
+                  ${isEpDownloaded
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
+                    : isEpDownloading
+                      ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/20 animate-pulse'
+                      : 'bg-surface border-border hover:border-accent/40 text-text-dim hover:text-text'}`}
               >
                 {isEpDownloaded ? (
                   <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
                     Scaricato
                   </>
                 ) : isEpDownloading ? (
                   <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
                     Scarico ({epProgress}%)
                   </>
                 ) : (
                   <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                     Scarica
                   </>
                 )}
@@ -242,16 +263,16 @@ export default function WatchPage() {
                 disabled={!prevEp}
                 onClick={() => handleNavigateEp(prevEp)}
                 className="px-4 py-2 bg-border hover:bg-border/80 disabled:opacity-30 disabled:hover:bg-border rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-1.5 border border-white/5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m15 18-6-6 6-6"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m15 18-6-6 6-6" /></svg>
                 Precedente
               </button>
-              
+
               <button
                 disabled={!nextEp}
                 onClick={() => handleNavigateEp(nextEp)}
                 className="px-4 py-2 bg-accent hover:bg-accent-h text-white disabled:opacity-30 disabled:hover:bg-accent rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-1.5 shadow-lg shadow-accent/10">
                 Successivo
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m9 18 6-6-6-6"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m9 18 6-6-6-6" /></svg>
               </button>
             </div>
           </div>
@@ -260,7 +281,7 @@ export default function WatchPage() {
         {/* Sidebar - Episode Quick Navigation */}
         <div className="bg-surface/30 p-5 rounded-2xl border border-border/50 backdrop-blur-sm flex flex-col max-h-[600px]">
           <h3 className="font-display text-lg tracking-wide text-text mb-4">EPISODI</h3>
-          
+
           <div className="grid grid-cols-4 gap-2 overflow-y-auto flex-1 pr-1">
             {episodes.map((ep, i) => {
               const isActive = ep.id === episodeId
@@ -269,8 +290,8 @@ export default function WatchPage() {
                   key={ep.id || i}
                   onClick={() => handleNavigateEp(ep)}
                   className={`aspect-square rounded-lg flex items-center justify-center text-xs font-bold transition-all border font-body
-                    ${isActive 
-                      ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20 scale-105' 
+                    ${isActive
+                      ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20 scale-105'
                       : 'bg-card border-border text-text-dim hover:border-accent hover:text-text'
                     }`}
                 >

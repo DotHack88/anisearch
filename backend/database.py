@@ -267,18 +267,13 @@ class AnimeDatabase:
                 result.append(d)
             return result
 
-    def set_watch_progress(self, anime_id: str, episode_id: str) -> None:
-        """Set or update the last watched episode for an anime."""
+    def delete_watch_progress(self, anime_id: str) -> None:
+        """Delete watch progress entry for given anime_id."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO watch_progress (anime_id, episode_id, updated_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-                """,
-                (anime_id, episode_id),
-            )
+            cursor.execute("DELETE FROM watch_progress WHERE anime_id = ?", (anime_id,))
             conn.commit()
+
 
     def get_watch_progress(self, anime_id: str) -> Optional[Dict]:
         """Retrieve the watch progress for a given anime."""
