@@ -44,8 +44,9 @@ class AnimeWorldScraper:
                 resp = self.session.get(url, timeout=self.timeout)
                 resp.raise_for_status()
                 return BeautifulSoup(resp.text, "html.parser")
-            except requests.exceptions.HTTPError:
-                code = resp.status_code
+            except requests.exceptions.HTTPError as e:
+                resp = e.response
+                code = resp.status_code if resp is not None else 500
                 if code == 403:
                     logger.warning(f"403 su {url}")
                     return None
@@ -242,7 +243,7 @@ class AnimeWorldScraper:
         """Scrape ALL pages of a letter in the AZ list."""
         all_results = []
         seen = set()
-        page = 0
+        page = 1
         max_pages = 100  # Safety limit
 
         while page <= max_pages:
@@ -252,24 +253,17 @@ class AnimeWorldScraper:
                 break
 
             page_results = self._parse_az_page(soup, seen)
-            if not page_results and page > 0:
+            if not page_results:
+                # If no new items are found, we reached the end or wrapped around to page 1
                 break
             all_results.extend(page_results)
-
-            # Check if there's a next page
-            pag_wrapper = soup.find("div", class_="paging-wrapper")
-            if pag_wrapper:
-                next_btn = pag_wrapper.find("a", id="go-next-page")
-                if not next_btn:
-                    break
-            else:
-                break
 
             page += 1
             time.sleep(self.delay)
 
-        logger.info(f"  {letter}: {len(all_results)} anime ({page + 1} pagine)")
+        logger.info(f"  {letter}: {len(all_results)} anime ({page - 1} pagine)")
         return all_results
+
 
     def build_full_index(self, cache) -> None:
         """Build the full anime index from A-Z list pages, with tooltip metadata."""
@@ -334,7 +328,9 @@ class AnimeWorldScraper:
         # Cover image
         cover_el = soup.select_one("#thumbnail-watch img, #mobile-thumbnail-watch img")
         if cover_el:
-            detail["cover"] = cover_el.get("src", "")
+            src = cover_el.get("src")
+            if isinstance(src, str):
+                detail["cover"] = src
 
         # Rating
         rating_div = soup.find("div", class_="rating")
@@ -481,12 +477,14 @@ class AnimeWorldScraper:
         # Fetch and store episodes for each updated anime
         for anime in anime_list:
             try:
-                detail = self.get_anime_detail(anime["url"])
-                episodes = detail.get("episodes", [])
-                # Attach anime_id to each episode
-                for ep in episodes:
-                    ep["anime_id"] = anime["id"]
-                if episodes:
-                    db.add_episodes(episodes)
+                url = anime.get("url")
+                if isinstance(url, str):
+                    detail = self.get_anime_detail(url)
+                    episodes = detail.get("episodes", [])
+                    # Attach anime_id to each episode
+                    for ep in episodes:
+                        ep["anime_id"] = anime["id"]
+                    if episodes:
+                        db.add_episodes(episodes)
             except Exception as e:
                 logger.warning(f"Failed to fetch episodes for {anime.get('id')}: {e}")
