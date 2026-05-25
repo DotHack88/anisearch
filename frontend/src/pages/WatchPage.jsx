@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress } from '../utils/api.js'
 import { useDownloads } from '../hooks/useDownloads.js'
@@ -18,7 +18,8 @@ export default function WatchPage() {
   const [offlineUrl, setOfflineUrl] = useState('')
   const [isOfflinePlay, setIsOfflinePlay] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState(null);
+  const videoRef = useRef(null);
 
   // Download hook
   const {
@@ -100,6 +101,57 @@ export default function WatchPage() {
     }
   }, [episodeId, getOfflineUrl])
 
+  // Restore and save watch progress
+  useEffect(() => {
+    const videoEl = videoRef.current
+    if (!videoEl) return
+
+    const storageKey = `watch_progress_${animeId}_${episodeId}`
+    let isRestored = false
+
+    const restoreTime = () => {
+      if (isRestored) return
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        const time = parseFloat(saved)
+        if (!isNaN(time) && time > 0) {
+          // If duration is known, verify we aren't at the very end
+          if (!videoEl.duration || time < videoEl.duration - 5) {
+            videoEl.currentTime = time
+          }
+        }
+      }
+      isRestored = true
+    }
+
+    // Try restoring immediately if metadata is already loaded
+    if (videoEl.readyState >= 1) {
+      restoreTime()
+    }
+
+    const handleLoadedMetadata = () => {
+      restoreTime()
+    }
+
+    let lastSaveTime = 0
+    const handleTimeUpdate = () => {
+      const now = Date.now()
+      if (now - lastSaveTime > 1500) {
+        localStorage.setItem(storageKey, videoEl.currentTime)
+        lastSaveTime = now
+      }
+    }
+
+    videoEl.addEventListener('loadedmetadata', handleLoadedMetadata)
+    videoEl.addEventListener('timeupdate', handleTimeUpdate)
+
+    return () => {
+      videoEl.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      videoEl.removeEventListener('timeupdate', handleTimeUpdate)
+    }
+  }, [animeId, episodeId, videoUrl, offlineUrl])
+
+
   // Navigation handlers
   const currentIdx = episodes.findIndex(ep => ep.id === episodeId)
   const prevEp = currentIdx > 0 ? episodes[currentIdx - 1] : null
@@ -111,12 +163,18 @@ export default function WatchPage() {
     }
   }
 
-  const handleClearProgress = () => {
+  const handleClearProgress = async () => {
     // Remove from localStorage if stored
     localStorage.removeItem(`watch_${animeId}_${episodeId}`)
-    // Call backend delete
-    deleteWatchProgress(animeId, episodeId).catch(() => {})
-    // Optionally navigate back to home or refresh UI
+    // Also remove saved progress timestamp
+    localStorage.removeItem(`watch_progress_${animeId}_${episodeId}`)
+    // Call backend delete and await completion
+    try {
+      await deleteWatchProgress(animeId, episodeId)
+    } catch (e) {
+      console.error('Error deleting watch progress:', e)
+    }
+    // Navigate back to home to reflect cleared state
     navigate('/')
   }
 
@@ -186,6 +244,7 @@ export default function WatchPage() {
                     handleClearProgress();
                 }}
                 title="Cancella progresso"
+                aria-label="Cancella progresso"
                 className="absolute top-2 right-2 z-10 bg-red-600/70 hover:bg-red-600/90 text-white rounded-full w-6 h-6 flex items-center justify-center transition-opacity"
             >
                 X
@@ -213,6 +272,7 @@ export default function WatchPage() {
               </div>
             ) : (
               <video
+                ref={videoRef}
                 src={isOfflinePlay ? offlineUrl : videoUrl}
                 controls
                 autoPlay

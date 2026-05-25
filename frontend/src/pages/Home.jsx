@@ -19,6 +19,7 @@ export default function Home() {
 
   const handleClearProgress = (animeId, episodeId) => {
     localStorage.removeItem(`watch_${animeId}_${episodeId}`)
+    localStorage.removeItem(`watch_progress_${animeId}_${episodeId}`)
     deleteWatchProgress(animeId, episodeId).catch(() => {})
     setRecentWatch(prev => prev.filter(item => !(item.anime_id === animeId && item.episode_id === episodeId)))
   }

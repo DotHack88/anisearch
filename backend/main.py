@@ -164,6 +164,12 @@ def delete_watch(anime_id: str, episode_id: str = Query(...)):
     db.delete_watch_progress(anime_id)
     return {"status": "deleted", "anime_id": anime_id}
 
+@app.post("/watch/{anime_id}")
+def save_watch(anime_id: str, episode_id: str = Query(...)):
+    """Save watch progress for a given anime and episode."""
+    db.save_watch_progress(anime_id, episode_id)
+    return {"status": "saved", "anime_id": anime_id, "episode_id": episode_id}
+
 
 # Extend anime_detail to store episodes after fetching
 @app.get("/anime/{anime_id}")

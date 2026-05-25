@@ -306,3 +306,16 @@ class AnimeDatabase:
                 (limit,),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    def save_watch_progress(self, anime_id: str, episode_id: str) -> None:
+        """Insert or replace a watch progress entry for a given anime and episode."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO watch_progress (anime_id, episode_id, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                """,
+                (anime_id, episode_id),
+            )
+            conn.commit()
