@@ -27,7 +27,7 @@ export default function Home() {
           <h1 className="font-display tracking-widest leading-none" style={{ fontSize: 'clamp(4rem, 12vw, 8rem)' }}>
             <span className="text-accent">ANI</span><span className="text-text">SEARCH</span>
           </h1>
-          <p className="mt-3 text-text-dim font-body text-sm">Cerca e guarda anime da AnimeWorld</p>
+          <p className="mt-3 text-text-dim font-body text-sm">Cerca anime, Guada anime in Streaming</p>
         </div>
 
         <div className="w-full max-w-xl relative">
