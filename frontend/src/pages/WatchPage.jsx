@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
-import { getEpisodeVideo, getAnimeDetail } from '../utils/api.js'
+import { getEpisodeVideo, getAnimeDetail, saveWatchProgress } from '../utils/api.js'
 
 export default function WatchPage() {
   const { animeId, episodeId } = useParams()
@@ -38,6 +38,7 @@ export default function WatchPage() {
       .then(data => {
         if (data.video_url) {
           setVideoUrl(data.video_url)
+          saveWatchProgress(animeId, episodeId).catch(err => console.error('Error saving watch progress:', err))
         } else {
           setError("Impossibile caricare il flusso video di questo episodio.")
         }

@@ -11,5 +11,8 @@ export const getStatus      = async ()               => (await api.get('/status'
 export const getCatalog     = async (params)         => (await api.get('/catalog', { params })).data
 export const getFilters     = async ()               => (await api.get('/filters')).data
 export const getEpisodeVideo = async (episodeId)     => (await api.get(`/episode/${episodeId}/video`)).data
+export const saveWatchProgress = async (animeId, episodeId) => (await api.post(`/watch/${animeId}`, null, { params: { episode_id: episodeId } })).data
+export const getWatchProgress  = async (animeId)             => (await api.get(`/watch/${animeId}`)).data
+export const getRecentWatchProgress = async ()               => (await api.get('/watch')).data
 
 export default api

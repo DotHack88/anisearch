@@ -3,14 +3,18 @@ import { Link } from 'react-router-dom'
 import SearchBar from '../components/SearchBar.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
 import { useFavorites } from '../hooks/useFavorites.js'
-import { getStatus } from '../utils/api.js'
+import { getStatus, getRecentWatchProgress } from '../utils/api.js'
 
 export default function Home() {
   const { favorites, removeFavorite } = useFavorites()
   const [status, setStatus] = useState(null)
+  const [recentWatch, setRecentWatch] = useState([])
 
   useEffect(() => {
     getStatus().then(setStatus).catch(() => setStatus({ status: 'offline' }))
+    getRecentWatchProgress()
+      .then(setRecentWatch)
+      .catch(err => console.error('Error fetching watch progress:', err))
   }, [])
 
   return (
@@ -57,6 +61,58 @@ export default function Home() {
           <span><kbd className="bg-border px-1 py-0.5 rounded">Esc</kbd> chiudi</span>
         </div>
       </section>
+
+      {/* Riprendi la Visione */}
+      {recentWatch.length > 0 && (
+        <section className="max-w-6xl mx-auto w-full px-4 pb-12">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display text-2xl tracking-wide text-text flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+                <circle cx="12" cy="12" r="10" />
+                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" />
+              </svg>
+              RIPRENDI LA VISIONE
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {recentWatch.map(item => (
+              <Link 
+                key={item.anime_id} 
+                to={`/watch/${item.anime_id}/${item.episode_id}`}
+                className="group relative bg-card/40 border border-border/50 rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:border-accent/40 hover:-translate-y-1 transition-all duration-300 backdrop-blur-sm"
+              >
+                {/* Poster Container */}
+                <div className="aspect-[16/9] w-full overflow-hidden bg-surface relative">
+                  <img 
+                    src={item.anime_image || `https://img.animeworld.ac/locandine/${item.anime_id}.jpg`} 
+                    alt={item.anime_title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  {/* Glass Play Overlay */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                    <div className="w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                  </div>
+                  {/* Badge Episodio */}
+                  <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/75 text-white rounded-md text-[10px] font-bold font-body backdrop-blur-sm border border-white/10">
+                    Episodio {item.episode_number}
+                  </span>
+                </div>
+                {/* Title */}
+                <div className="p-3">
+                  <h3 className="font-semibold text-xs text-text font-body truncate group-hover:text-accent transition-colors">
+                    {item.anime_title}
+                  </h3>
+                  <p className="text-[10px] text-muted font-body mt-0.5">
+                    Ultimo riprodotto
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Preferiti */}
       {favorites.length > 0 && (

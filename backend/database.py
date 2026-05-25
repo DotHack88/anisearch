@@ -240,7 +240,7 @@ class AnimeDatabase:
                         ep.get("title", ""),
                         ep.get("url", ""),
                         ep.get("season"),
-                        ep.get("episode"),
+                        ep.get("episode") or ep.get("number"),
                     ),
                 )
             conn.commit()
@@ -292,3 +292,22 @@ class AnimeDatabase:
             if row:
                 return {"episode_id": row["episode_id"], "updated_at": row["updated_at"]}
             return None
+
+    def get_recent_watch_progress(self, limit: int = 10) -> List[Dict]:
+        """Retrieve all watch progress items sorted by updated_at descending, including anime info and episode number."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT wp.anime_id, wp.episode_id, wp.updated_at,
+                       a.title as anime_title, a.image as anime_image,
+                       e.episode as episode_number
+                FROM watch_progress wp
+                JOIN anime a ON wp.anime_id = a.id
+                JOIN episodes e ON wp.episode_id = e.id
+                ORDER BY wp.updated_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]

@@ -142,6 +142,11 @@ def new_updates(limit: int = Query(20, ge=1, le=100)):
     episodes = db.get_recent_episodes(limit)
     return {"limit": limit, "episodes": episodes}
 
+@app.get("/watch")
+def get_all_watch(limit: int = Query(12, ge=1, le=50)):
+    """Get recent watch progress items for all anime."""
+    return db.get_recent_watch_progress(limit)
+
 @app.get("/watch/{anime_id}")
 def get_watch(anime_id: str):
     """Get the last watched episode for an anime."""

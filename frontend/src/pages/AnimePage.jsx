@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams, useLocation, Link } from 'react-router-dom'
+import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import EpisodeList from '../components/EpisodeList.jsx'
 import { useFavorites } from '../hooks/useFavorites.js'
-import { getAnimeDetail } from '../utils/api.js'
+import { getAnimeDetail, getWatchProgress } from '../utils/api.js'
 
 const Sk = ({ className }) => <div className={`skeleton rounded-lg ${className}`} />
 
@@ -10,10 +10,12 @@ export default function AnimePage() {
   const { id } = useParams()
   const { state: base } = useLocation()
   const { toggleFavorite, isFavorite } = useFavorites()
+  const navigate = useNavigate()
 
   const [anime,   setAnime]   = useState(base?.title ? base : null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
+  const [progress, setProgress] = useState(null)
   const fav = isFavorite(id)
 
   useEffect(() => {
@@ -23,6 +25,14 @@ export default function AnimePage() {
       .then(data => setAnime(prev => ({ ...prev, ...data })))
       .catch(() => setError('Impossibile caricare i dettagli.'))
       .finally(() => setLoading(false))
+
+    getWatchProgress(id)
+      .then(data => {
+        if (data && data.episode_id) {
+          setProgress(data)
+        }
+      })
+      .catch(err => console.error('Error fetching progress:', err))
   }, [id])
 
   if (error && !anime) return (
@@ -36,8 +46,19 @@ export default function AnimePage() {
   const img   = anime?.image   || `https://img.animeworld.ac/locandine/${id}.jpg`
   const cover = anime?.cover   || `https://img.animeworld.ac/copertine/${id}.png`
 
+  const lastWatchedEpisode = anime?.episodes?.find(ep => ep.id === progress?.episode_id)
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
+      {/* Tasto Indietro */}
+      <button onClick={() => navigate(-1)} 
+        className="absolute top-4 left-4 z-10 px-4 py-2 bg-black/50 hover:bg-black/70 text-white rounded-xl font-body text-xs font-semibold backdrop-blur-md border border-white/10 transition-all flex items-center gap-1.5 shadow-lg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+        Indietro
+      </button>
+
       {/* Banner sfocato */}
       <div className="relative h-52 md:h-64 overflow-hidden">
         <img src={cover} alt="" className="w-full h-full object-cover scale-110 blur-sm"
@@ -84,12 +105,20 @@ export default function AnimePage() {
 
             {/* Azioni */}
             <div className="flex items-center gap-3 mt-5 justify-center md:justify-start flex-wrap">
-              {anime?.episodes?.[0] && (
-                <Link to={`/watch/${id}/${anime.episodes[0].id}`} state={{ episodes: anime.episodes, animeTitle: anime.title }}
+              {lastWatchedEpisode ? (
+                <Link to={`/watch/${id}/${lastWatchedEpisode.id}`} state={{ episodes: anime.episodes, animeTitle: anime.title }}
                   className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  Guarda Ep. 1
+                  Riprendi da Ep. {lastWatchedEpisode.number}
                 </Link>
+              ) : (
+                anime?.episodes?.[0] && (
+                  <Link to={`/watch/${id}/${anime.episodes[0].id}`} state={{ episodes: anime.episodes, animeTitle: anime.title }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    Guarda Ep. 1
+                  </Link>
+                )
               )}
               {anime?.url && (
                 <a href={anime.url} target="_blank" rel="noopener noreferrer"
