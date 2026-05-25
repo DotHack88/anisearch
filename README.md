@@ -8,7 +8,7 @@
 
 # 🔍 AniSearch
 
-**Cerca, sfoglia e guarda anime da AnimeWorld** con ricerca in tempo reale, catalogo filtrabile, riproduzione video nativa e tracciamento della visione.
+**Cerca, sfoglia e guarda anime** con ricerca in tempo reale, catalogo filtrabile, riproduzione video nativa e tracciamento della visione.
 
 ---
 
@@ -32,7 +32,7 @@
 anisearch/
 ├── backend/                  # API Python + Scraper
 │   ├── main.py               # FastAPI — server API REST
-│   ├── scraper.py             # Scraper AnimeWorld (A-Z + tooltip metadata)
+│   ├── scraper.py             # Scraper  (A-Z + tooltip metadata)
 │   ├── database.py            # SQLite — anime, episodi, watch progress
 │   ├── cache.py               # Redis caching helper (opzionale)
 │   ├── requirements.txt       # Dipendenze Python
@@ -178,9 +178,9 @@ Il container espone l'API su porta `8000`. Configura la variabile d'ambiente `RE
 
 ## ⚠️ Note Importanti
 
-- Lo scraping funziona **solo da IP residenziale** (AnimeWorld blocca IP di datacenter/VPN).
+- Lo scraping funziona **solo da IP residenziale** 
 - Il primo avvio richiede alcuni minuti per popolare il database completo.
-- I flussi video vengono recuperati in tempo reale tramite le API di AnimeWorld — la disponibilità dipende dal sito sorgente.
+- I flussi video vengono recuperati in tempo reale tramite le API  — la disponibilità dipende dal sito sorgente.
 - Redis è **opzionale**: se non disponibile, l'app funziona normalmente senza caching.
 
 ---

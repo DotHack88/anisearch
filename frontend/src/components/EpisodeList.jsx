@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-export default function EpisodeList({ episodes, animeId, animeTitle }) {
+export default function EpisodeList({ episodes, animeId, animeTitle, animeImage }) {
   if (!episodes?.length) {
     return <p className="text-center py-10 text-muted font-body text-sm">Nessun episodio disponibile.</p>
   }
@@ -11,7 +11,7 @@ export default function EpisodeList({ episodes, animeId, animeTitle }) {
         <Link 
           key={ep.id || i} 
           to={`/watch/${animeId}/${ep.id}`}
-          state={{ episodes, animeTitle }}
+          state={{ episodes, animeTitle, animeImage }}
           aria-label={`${animeTitle} episodio ${ep.number}`}
           className="flex flex-col items-center justify-center aspect-square bg-surface border border-border rounded-xl hover:bg-accent hover:text-white hover:border-accent hover:scale-105 transition-all duration-200 font-body relative group overflow-hidden">
           

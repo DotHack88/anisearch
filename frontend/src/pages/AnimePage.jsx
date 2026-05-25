@@ -106,14 +106,14 @@ export default function AnimePage() {
             {/* Azioni */}
             <div className="flex items-center gap-3 mt-5 justify-center md:justify-start flex-wrap">
               {lastWatchedEpisode ? (
-                <Link to={`/watch/${id}/${lastWatchedEpisode.id}`} state={{ episodes: anime.episodes, animeTitle: anime.title }}
+                <Link to={`/watch/${id}/${lastWatchedEpisode.id}`} state={{ episodes: anime.episodes, animeTitle: anime.title, animeImage: img }}
                   className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                   Riprendi da Ep. {lastWatchedEpisode.number}
                 </Link>
               ) : (
                 anime?.episodes?.[0] && (
-                  <Link to={`/watch/${id}/${anime.episodes[0].id}`} state={{ episodes: anime.episodes, animeTitle: anime.title }}
+                  <Link to={`/watch/${id}/${anime.episodes[0].id}`} state={{ episodes: anime.episodes, animeTitle: anime.title, animeImage: img }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     Guarda Ep. 1
@@ -147,7 +147,7 @@ export default function AnimePage() {
           </h2>
           {loading
             ? <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">{Array.from({length:20}).map((_,i)=><Sk key={i} className="aspect-square rounded-xl"/>)}</div>
-            : <EpisodeList episodes={anime?.episodes} animeId={id} animeTitle={anime?.title} />
+            : <EpisodeList episodes={anime?.episodes} animeId={id} animeTitle={anime?.title} animeImage={img} />
           }
           {error && <p className="text-sm text-yellow-400 font-body mt-4">⚠️ {error}</p>}
         </div>

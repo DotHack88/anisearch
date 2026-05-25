@@ -1,53 +1,104 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import { getEpisodeVideo, getAnimeDetail, saveWatchProgress } from '../utils/api.js'
+import { useDownloads } from '../hooks/useDownloads.js'
 
 export default function WatchPage() {
   const { animeId, episodeId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
   
-  // Episode list and Anime details
+  // Episode list, Anime details and cover
   const [episodes, setEpisodes] = useState(location.state?.episodes || [])
   const [animeTitle, setAnimeTitle] = useState(location.state?.animeTitle || '')
+  const [animeImage, setAnimeImage] = useState(location.state?.animeImage || '')
   
   // Stream data
   const [videoUrl, setVideoUrl] = useState('')
+  const [offlineUrl, setOfflineUrl] = useState('')
+  const [isOfflinePlay, setIsOfflinePlay] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Fetch episodes if missing (e.g. on direct page access or refresh)
+  // Download hook
+  const { 
+    isDownloaded, 
+    isDownloading, 
+    getProgress, 
+    startDownload, 
+    cancelDownload, 
+    removeDownload, 
+    getOfflineUrl 
+  } = useDownloads()
+
+  // Fetch episodes if missing
   useEffect(() => {
     if (episodes.length === 0 || !animeTitle) {
       getAnimeDetail(animeId)
         .then(data => {
           setEpisodes(data.episodes || [])
           setAnimeTitle(data.title || '')
+          setAnimeImage(data.image || '')
         })
         .catch(err => console.error('Error fetching episodes context:', err))
     }
   }, [animeId, episodes.length, animeTitle])
 
-  // Fetch video stream URL on episodeId change
+  // Fetch or retrieve offline video URL on episodeId change
   useEffect(() => {
-    setLoading(true)
-    setError(null)
-    setVideoUrl('')
+    let active = true
+    let localUrl = ''
 
-    getEpisodeVideo(episodeId)
-      .then(data => {
-        if (data.video_url) {
-          setVideoUrl(data.video_url)
-          saveWatchProgress(animeId, episodeId).catch(err => console.error('Error saving watch progress:', err))
-        } else {
-          setError("Impossibile caricare il flusso video di questo episodio.")
+    async function loadVideo() {
+      setLoading(true)
+      setError(null)
+      setVideoUrl('')
+      setOfflineUrl('')
+      setIsOfflinePlay(false)
+
+      try {
+        // 1. Check if we have it offline in IndexedDB
+        const offlineBlobUrl = await getOfflineUrl(episodeId)
+        if (offlineBlobUrl) {
+          if (active) {
+            localUrl = offlineBlobUrl
+            setOfflineUrl(offlineBlobUrl)
+            setIsOfflinePlay(true)
+            setLoading(false)
+            // Save watch progress to backend (ignore errors if offline)
+            saveWatchProgress(animeId, episodeId).catch(() => {})
+          }
+          return
         }
-      })
-      .catch(() => {
-        setError("Errore durante il recupero del flusso video. L'episodio potrebbe non essere disponibile.")
-      })
-      .finally(() => setLoading(false))
-  }, [episodeId])
+
+        // 2. Fetch the streaming URL if not offline
+        const data = await getEpisodeVideo(episodeId)
+        if (active) {
+          if (data.video_url) {
+            setVideoUrl(data.video_url)
+            saveWatchProgress(animeId, episodeId).catch(err => console.error('Error saving watch progress:', err))
+          } else {
+            setError("Impossibile caricare il flusso video di questo episodio.")
+          }
+          setLoading(false)
+        }
+      } catch (err) {
+        if (active) {
+          setError("Errore durante il recupero del flusso video. L'episodio potrebbe non essere disponibile online.")
+          setLoading(false)
+        }
+      }
+    }
+
+    loadVideo()
+
+    return () => {
+      active = false
+      if (localUrl) {
+        URL.revokeObjectURL(localUrl)
+      }
+    }
+  }, [episodeId, getOfflineUrl])
 
   // Navigation handlers
   const currentIdx = episodes.findIndex(ep => ep.id === episodeId)
@@ -56,11 +107,40 @@ export default function WatchPage() {
 
   const handleNavigateEp = (ep) => {
     if (ep) {
-      navigate(`/watch/${animeId}/${ep.id}`, { state: { episodes, animeTitle } })
+      navigate(`/watch/${animeId}/${ep.id}`, { state: { episodes, animeTitle, animeImage } })
     }
   }
 
   const currentEpNumber = episodes[currentIdx]?.number || ''
+
+  const isEpDownloaded = isDownloaded(episodeId)
+  const isEpDownloading = isDownloading(episodeId)
+  const epProgress = getProgress(episodeId)
+
+  const handleDownloadClick = () => {
+    if (isEpDownloaded) {
+      if (window.confirm("Vuoi eliminare questo episodio dai download offline?")) {
+        removeDownload(episodeId)
+        setIsOfflinePlay(false)
+        setOfflineUrl('')
+        setLoading(true)
+        getEpisodeVideo(episodeId)
+          .then(data => {
+            if (data.video_url) setVideoUrl(data.video_url)
+            setLoading(false)
+          })
+          .catch(() => {
+            setError("Impossibile caricare il flusso video in streaming.")
+            setLoading(false)
+          })
+      }
+    } else if (isEpDownloading) {
+      cancelDownload(episodeId)
+    } else {
+      const coverUrl = animeImage || `https://img.animeworld.ac/locandine/${animeId}.jpg`
+      startDownload(animeId, animeTitle, coverUrl, episodeId, currentEpNumber)
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 page-enter">
@@ -82,6 +162,13 @@ export default function WatchPage() {
         {/* Video Player & Info */}
         <div className="lg:col-span-3 space-y-4">
           <div className="video-player-container border border-border shadow-2xl relative bg-black">
+            {isOfflinePlay && (
+              <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-green-500/20 text-green-400 text-[10px] font-bold font-body">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                OFFLINE PLAYBACK
+              </div>
+            )}
+            
             {loading ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center bg-surface/90">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin text-accent mb-4">
@@ -105,7 +192,7 @@ export default function WatchPage() {
               </div>
             ) : (
               <video 
-                src={videoUrl} 
+                src={isOfflinePlay ? offlineUrl : videoUrl} 
                 controls 
                 autoPlay 
                 playsInline
@@ -121,8 +208,36 @@ export default function WatchPage() {
               <p className="text-sm text-text-dim font-body mt-1">Episodio {currentEpNumber}</p>
             </div>
 
-            {/* Quick Next/Prev controls */}
-            <div className="flex items-center gap-2 self-end sm:self-center">
+            {/* Quick Next/Prev/Download controls */}
+            <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+              {/* Download Button */}
+              <button
+                onClick={handleDownloadClick}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-1.5 border
+                  ${isEpDownloaded 
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' 
+                    : isEpDownloading 
+                    ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/20 animate-pulse' 
+                    : 'bg-surface border-border hover:border-accent/40 text-text-dim hover:text-text'}`}
+              >
+                {isEpDownloaded ? (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    Scaricato
+                  </>
+                ) : isEpDownloading ? (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    Scarico ({epProgress}%)
+                  </>
+                ) : (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Scarica
+                  </>
+                )}
+              </button>
+
               <button
                 disabled={!prevEp}
                 onClick={() => handleNavigateEp(prevEp)}
@@ -169,3 +284,4 @@ export default function WatchPage() {
     </div>
   )
 }
+

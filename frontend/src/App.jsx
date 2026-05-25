@@ -5,6 +5,7 @@ import AnimePage from './pages/AnimePage.jsx'
 import CatalogPage from './pages/CatalogPage.jsx'
 import FavoritesPage from './pages/FavoritesPage.jsx'
 import WatchPage from './pages/WatchPage.jsx'
+import DownloadsPage from './pages/DownloadsPage.jsx'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/anime/:id"     element={<AnimePage />} />
           <Route path="/watch/:animeId/:episodeId" element={<WatchPage />} />
           <Route path="/favorites"     element={<FavoritesPage />} />
+          <Route path="/downloads"     element={<DownloadsPage />} />
           <Route path="*" element={
             <div className="flex flex-col items-center justify-center min-h-[70vh] text-center page-enter">
               <p className="font-display text-8xl text-accent mb-4">404</p>

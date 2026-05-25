@@ -3,7 +3,12 @@ AniSearch — Backend API (FastAPI)
 """
 
 import os
+import sys
+from pathlib import Path
 from typing import Any
+
+# Aggiungi la cartella radice del progetto al percorso di ricerca di Python
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 # Redis for caching frequent searches (optional — works without it)
 try:
@@ -193,6 +198,41 @@ async def episode_video(episode_id: str):
     except Exception as e:
         logger.error(f"Errore video {episode_id}: {e}")
         raise HTTPException(500, "Errore nel recupero del video")
+
+
+@app.get("/episode/{episode_id}/download")
+async def download_episode(episode_id: str):
+    """Proxy-stream the video file for offline download with Content-Length."""
+    from starlette.responses import StreamingResponse
+    import requests as dl_requests
+
+    result = await asyncio.to_thread(scraper.get_episode_video_url, episode_id)
+    video_url = result.get("video_url")
+    if not video_url:
+        raise HTTPException(404, "Video non trovato")
+
+    try:
+        head = dl_requests.head(video_url, timeout=10, allow_redirects=True)
+        content_length = head.headers.get("Content-Length")
+    except Exception:
+        content_length = None
+
+    def stream():
+        with dl_requests.get(video_url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            for chunk in r.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+
+    headers = {
+        "Content-Type": "video/mp4",
+        "Content-Disposition": f'attachment; filename="episode_{episode_id}.mp4"',
+        "Access-Control-Expose-Headers": "Content-Length, Content-Disposition",
+    }
+    if content_length:
+        headers["Content-Length"] = content_length
+
+    return StreamingResponse(stream(), media_type="video/mp4", headers=headers)
 
 
 @app.get("/catalog")
