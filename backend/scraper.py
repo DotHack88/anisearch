@@ -265,7 +265,7 @@ class AnimeWorldScraper:
         return all_results
 
 
-    def build_full_index(self, cache) -> None:
+    def build_full_index(self, cache, batch_mode="replace") -> None:
         """Build the full anime index from A-Z list pages, with tooltip metadata."""
         logger.info(f"Inizio scraping {len(AZ_LETTERS)} sezioni A-Z...")
         total = 0
@@ -275,7 +275,7 @@ class AnimeWorldScraper:
                 # Enrich with tooltip metadata (genres, status, year, rating)
                 logger.info(f"  {letter}: arricchimento metadati per {len(items)} anime...")
                 self._enrich_with_tooltips(items)
-                cache.add_batch(items)
+                cache.add_batch(items, mode=batch_mode)
                 total += len(items)
             time.sleep(self.delay)
         logger.info(f"Indicizzazione completata: {total} anime totali")

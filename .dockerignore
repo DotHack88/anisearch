@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Database (generato a runtime)
+*.db
+*.sqlite
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Secrets
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Dev files
+*.md
+13-2.py
+14-3.py
+pyrefly.toml

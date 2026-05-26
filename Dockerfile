@@ -6,7 +6,7 @@
 # ============================================================
 
 # --- Stage 1: Build frontend ---
-FROM node:20-slim AS frontend-build
+FROM node:22-slim AS frontend-build
 WORKDIR /build
 COPY frontend/package*.json ./
 RUN npm ci
@@ -14,7 +14,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- Stage 2: Production ---
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install nginx + supervisor
 RUN apt-get update && \
@@ -75,7 +75,7 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 [program:uvicorn]
-command=uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1
+command=uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers %(ENV_UVICORN_WORKERS)s
 directory=/app
 autostart=true
 autorestart=true
@@ -91,6 +91,14 @@ EXPOSE 80
 # Environment variables
 ENV REDIS_URL=redis://redis:6379
 ENV ADMIN_TOKEN=""
-ENV ALLOWED_ORIGINS="*"
+ENV ALLOWED_ORIGINS=""
+ENV UVICORN_WORKERS="2"
+
+HEALTHCHECK \
+  --interval=30s \
+  --timeout=5s \
+  --start-period=60s \
+  --retries=3 \
+  CMD curl -f http://localhost/status || exit 1
 
 CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]

@@ -43,7 +43,7 @@ def cache_set(key: str, value: Any, ex: int = 300) -> None:
         except Exception:
             pass
 
-from fastapi import FastAPI, HTTPException, Query, Header, Request
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
@@ -67,10 +67,8 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration from environment ---
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
-ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:3000"
-).split(",")
+raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 
 db = AnimeDatabase()
 scraper = AnimeWorldScraper()
@@ -102,6 +100,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.info(f"Avvio rapido — Database già popolato con {await db.count()} anime.")
         
+    if not os.getenv("ADMIN_TOKEN"):
+        import warnings
+        warnings.warn(
+            "ADMIN_TOKEN non è impostato. "
+            "L'endpoint /cache/refresh non funzionerà.",
+            RuntimeWarning
+        )
+        
     # Avvio Scheduler
     scheduler.add_job(scheduled_update, 'interval', minutes=60)
     scheduler.start()
@@ -112,6 +118,20 @@ async def lifespan(app: FastAPI):
     # Spegnimento Scheduler
     scheduler.shutdown()
     logger.info("Scheduler fermato.")
+
+def verify_admin_token(x_admin_token: str = Header(...)):
+    """Verifica il token admin nell'header X-Admin-Token."""
+    admin_token = os.getenv("ADMIN_TOKEN", "")
+    if not admin_token:
+        raise HTTPException(
+            status_code=500,
+            detail="ADMIN_TOKEN non configurato sul server."
+        )
+    if x_admin_token != admin_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Token non valido."
+        )
 
 
 app = FastAPI(title="AniSearch API", version="2.1.0", lifespan=lifespan)
@@ -126,20 +146,14 @@ else:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 
-# --- Auth helper ---
-def _verify_admin(token: str | None):
-    """Verify admin token. If ADMIN_TOKEN env is not set, all requests pass (dev mode)."""
-    if not ADMIN_TOKEN:
-        return  # No token configured — dev mode, allow all
-    if token != ADMIN_TOKEN:
-        raise HTTPException(403, "Forbidden — invalid or missing admin token")
+# --- Auth helper rimosso in favore di verify_admin_token ---
 
 
 @app.get("/")
@@ -211,27 +225,48 @@ async def new_updates(limit: int = Query(20, ge=1, le=100)):
     episodes = await db.get_recent_episodes(limit)
     return {"limit": limit, "episodes": episodes}
 
+from fastapi import Cookie, Response
+import uuid
+
+def get_or_create_session(
+    response: Response,
+    anisearch_session: str | None = Cookie(default=None)
+) -> str:
+    if not anisearch_session:
+        anisearch_session = str(uuid.uuid4())
+        response.set_cookie(
+            key="anisearch_session",
+            value=anisearch_session,
+            max_age=60 * 60 * 24 * 365,
+            httponly=True,
+            samesite="lax"
+        )
+    return anisearch_session
+
 @app.get("/watch")
-async def get_all_watch(limit: int = Query(12, ge=1, le=50)):
+async def get_all_watch(
+    session_id: str = Depends(get_or_create_session),
+    limit: int = Query(12, ge=1, le=50)
+):
     """Get recent watch progress items for all anime."""
-    return await db.get_recent_watch_progress(limit)
+    return await db.get_recent_watch_progress(session_id, limit)
 
 @app.get("/watch/{anime_id}")
-async def get_watch(anime_id: str):
+async def get_watch(anime_id: str, session_id: str = Depends(get_or_create_session)):
     """Get the last watched episode for an anime."""
-    progress = await db.get_watch_progress(anime_id)
+    progress = await db.get_watch_progress(session_id, anime_id)
     return progress or {"message": "No progress found"}
 
 @app.delete("/watch/{anime_id}")
-async def delete_watch(anime_id: str, episode_id: str = Query(...)):
+async def delete_watch(anime_id: str, episode_id: str = Query(...), session_id: str = Depends(get_or_create_session)):
     """Delete watch progress for given anime (ignore episode_id)."""
-    await db.delete_watch_progress(anime_id)
+    await db.delete_watch_progress(session_id, anime_id)
     return {"status": "deleted", "anime_id": anime_id}
 
 @app.post("/watch/{anime_id}")
-async def save_watch(anime_id: str, episode_id: str = Query(...)):
+async def save_watch(anime_id: str, episode_id: str = Query(...), session_id: str = Depends(get_or_create_session)):
     """Save watch progress for a given anime and episode."""
-    await db.save_watch_progress(anime_id, episode_id)
+    await db.save_watch_progress(session_id, anime_id, episode_id)
     return {"status": "saved", "anime_id": anime_id, "episode_id": episode_id}
 
 
@@ -257,7 +292,8 @@ async def anime_detail(anime_id: str):
 
 
 @app.get("/episode/{episode_id}/video")
-async def episode_video(episode_id: str):
+@limiter.limit("10/minute") if limiter else lambda f: f
+async def episode_video(request: Request, episode_id: str):
     """Get the direct video stream URL for an episode."""
     try:
         result = await asyncio.to_thread(scraper.get_episode_video_url, episode_id)
@@ -362,10 +398,10 @@ async def filters():
     }
 
 
-@app.post("/cache/refresh")
-async def refresh(x_admin_token: str | None = Header(None)):
+@app.post("/cache/refresh", dependencies=[Depends(verify_admin_token)])
+@limiter.limit("2/hour") if limiter else lambda f: f
+async def refresh(request: Request):
     """Rebuild the entire database from scratch. Requires ADMIN_TOKEN if configured."""
-    _verify_admin(x_admin_token)
     await db.clear()
     await asyncio.to_thread(scraper.build_full_index, db)
     return {"status": "ok", "cached_anime": await db.count()}

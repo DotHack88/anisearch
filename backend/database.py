@@ -3,9 +3,10 @@ import json
 import logging
 from typing import List, Dict, Optional, Any
 
-from sqlmodel import SQLModel, Field, select, create_engine
+from sqlmodel import SQLModel, Field, select
+from sqlalchemy import func, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel.ext.asyncio.engine import AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = os.path.join(os.path.dirname(__file__), "anisearch.db")
 
 # Async engine using aiosqlite
-engine: AsyncEngine = create_engine(
+engine: AsyncEngine = create_async_engine(
     f"sqlite+aiosqlite:///{DB_PATH}",
     echo=False,
     future=True,
@@ -22,15 +23,15 @@ engine: AsyncEngine = create_engine(
 
 # ---------- Models ----------
 class Anime(SQLModel, table=True):
-    id: str = Field(primary_key=True)
-    title: str
-    url: str
-    image: Optional[str] = None
-    type: Optional[str] = None
-    status: Optional[str] = None
-    year: Optional[str] = None
-    rating: Optional[str] = None
-    genres: Optional[str] = None  # JSON string stored in TEXT column
+    id: str = Field(default=None, primary_key=True)
+    title: str = Field(default="")
+    url: str = Field(default="")
+    image: Optional[str] = Field(default=None)
+    type: Optional[str] = Field(default=None)
+    status: Optional[str] = Field(default=None)
+    year: Optional[str] = Field(default=None)
+    rating: Optional[str] = Field(default=None)
+    genres: Optional[str] = Field(default=None)  # JSON string stored in TEXT column
 
 class Episode(SQLModel, table=True):
     id: str = Field(primary_key=True)
@@ -42,6 +43,7 @@ class Episode(SQLModel, table=True):
     added_at: Optional[str] = None  # SQLite timestamp default handled by DB
 
 class WatchProgress(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
     anime_id: str = Field(primary_key=True, foreign_key="anime.id")
     episode_id: str = Field(foreign_key="episode.id")
     updated_at: Optional[str] = None
@@ -93,7 +95,7 @@ class AnimeDatabase:
         logger.info("Database cleared — all tables emptied.")
 
     # ----- Anime -----
-    async def add_batch(self, anime_list: List[Dict]) -> None:
+    async def add_batch(self, anime_list: List[Dict], mode: str = "replace") -> None:
         if not anime_list:
             return
         async with AsyncSession(engine) as session:
@@ -109,7 +111,12 @@ class AnimeDatabase:
                     rating=a.get("rating", ""),
                     genres=_serialize_genres(a.get("genres", [])),
                 )
-                session.add(obj)
+                if mode == "ignore":
+                    existing = await session.get(Anime, obj.id)
+                    if not existing:
+                        session.add(obj)
+                else:
+                    await session.merge(obj)
             await session.commit()
 
     async def get_by_id(self, anime_id: str) -> Optional[dict]:
@@ -217,31 +224,37 @@ class AnimeDatabase:
             return [dict(r) for r in rows]
 
     # ----- Watch Progress -----
-    async def save_watch_progress(self, anime_id: str, episode_id: str) -> None:
+    async def save_watch_progress(self, session_id: str, anime_id: str, episode_id: str) -> None:
         async with AsyncSession(engine) as session:
-            wp = WatchProgress(anime_id=anime_id, episode_id=episode_id)
-            session.add(wp)
+            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
+            wp = result.one_or_none()
+            if wp:
+                wp.episode_id = episode_id
+            else:
+                wp = WatchProgress(session_id=session_id, anime_id=anime_id, episode_id=episode_id)
+                session.add(wp)
             await session.commit()
 
-    async def get_watch_progress(self, anime_id: str) -> Optional[dict]:
+    async def get_watch_progress(self, session_id: str, anime_id: str) -> Optional[dict]:
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id))
+            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
             wp = result.one_or_none()
             if wp:
                 return {"episode_id": wp.episode_id, "updated_at": wp.updated_at}
             return None
 
-    async def delete_watch_progress(self, anime_id: str) -> None:
+    async def delete_watch_progress(self, session_id: str, anime_id: str) -> None:
         async with AsyncSession(engine) as session:
-            await session.exec(delete(WatchProgress).where(WatchProgress.anime_id == anime_id))
+            await session.exec(delete(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
             await session.commit()
 
-    async def get_recent_watch_progress(self, limit: int = 10) -> List[dict]:
+    async def get_recent_watch_progress(self, session_id: str, limit: int = 10) -> List[dict]:
         async with AsyncSession(engine) as session:
             stmt = (
                 select(WatchProgress, Anime.title.label("anime_title"), Anime.image.label("anime_image"), Episode.episode.label("episode_number"))
                 .join(Anime, WatchProgress.anime_id == Anime.id)
                 .join(Episode, WatchProgress.episode_id == Episode.id)
+                .where(WatchProgress.session_id == session_id)
                 .order_by(WatchProgress.updated_at.desc())
                 .limit(limit)
             )
