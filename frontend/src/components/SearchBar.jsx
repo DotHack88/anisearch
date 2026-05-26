@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSearch } from '../hooks/useSearch.jsx'
+import { useSearch } from '../hooks/useSearch.js'
 
 const TypeBadge = ({ type }) => {
   if (!type) return null
@@ -12,8 +12,8 @@ export default function SearchBar({ large = false, autoFocus = false }) {
   const navigate = useNavigate()
   const { query, setQuery, results, loading, error, isOpen, setIsOpen, clearSearch } = useSearch()
   const [activeIdx, setActiveIdx] = useState(-1)
-  const inputRef   = useRef(null)
-  const dropRef    = useRef(null)
+  const inputRef = useRef(null)
+  const dropRef = useRef(null)
 
   useEffect(() => { setActiveIdx(-1) }, [results])
 
@@ -28,16 +28,16 @@ export default function SearchBar({ large = false, autoFocus = false }) {
 
   const handleKey = (e) => {
     if (!isOpen) return
-    if (e.key === 'ArrowDown')  { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)) }
-    if (e.key === 'ArrowUp')    { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, -1)) }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)) }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, -1)) }
     if (e.key === 'Enter' && activeIdx >= 0) select(results[activeIdx])
-    if (e.key === 'Escape')     { setIsOpen(false); inputRef.current?.blur() }
+    if (e.key === 'Escape') { setIsOpen(false); inputRef.current?.blur() }
   }
 
   const select = (anime) => { clearSearch(); navigate(`/anime/${anime.id}`, { state: anime }) }
 
   const base = `w-full bg-surface border border-border rounded-xl text-text placeholder-muted focus:outline-none focus:border-accent transition-colors font-body`
-  const cls  = large ? `${base} pl-14 pr-12 py-5 text-lg rounded-2xl` : `${base} pl-11 pr-10 py-3 text-sm`
+  const cls = large ? `${base} pl-14 pr-12 py-5 text-lg rounded-2xl` : `${base} pl-11 pr-10 py-3 text-sm`
 
   return (
     <div className="relative w-full">
@@ -45,8 +45,8 @@ export default function SearchBar({ large = false, autoFocus = false }) {
         {/* Icona sinistra */}
         <span className={`absolute ${large ? 'left-5' : 'left-3.5'} top-1/2 -translate-y-1/2 text-muted pointer-events-none`}>
           {loading
-            ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+            : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
           }
         </span>
 
@@ -66,7 +66,7 @@ export default function SearchBar({ large = false, autoFocus = false }) {
 
         {query && (
           <button onClick={clearSearch} className={`absolute ${large ? 'right-5' : 'right-3'} top-1/2 -translate-y-1/2 text-muted hover:text-text p-1`}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         )}
       </div>
@@ -94,7 +94,7 @@ export default function SearchBar({ large = false, autoFocus = false }) {
                     <p className="text-sm font-medium text-text truncate font-body">{anime.title}</p>
                     <div className="mt-0.5"><TypeBadge type={anime.type} /></div>
                   </div>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted flex-shrink-0"><path d="m9 18 6-6-6-6"/></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted flex-shrink-0"><path d="m9 18 6-6-6-6" /></svg>
                 </li>
               ))}
             </ul>

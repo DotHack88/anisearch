@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import SearchBar from '../components/SearchBar.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
-import { useFavorites } from '../hooks/useFavorites.jsx'
+import { useFavorites } from '../hooks/useFavorites.js'
 import { getStatus, getRecentWatchProgress, deleteWatchProgress } from '../utils/api.js'
 
 export default function Home() {
@@ -20,7 +20,7 @@ export default function Home() {
   const handleClearProgress = (animeId, episodeId) => {
     localStorage.removeItem(`watch_${animeId}_${episodeId}`)
     localStorage.removeItem(`watch_progress_${animeId}_${episodeId}`)
-    deleteWatchProgress(animeId, episodeId).catch(() => {})
+    deleteWatchProgress(animeId, episodeId).catch(() => { })
     setRecentWatch(prev => prev.filter(item => !(item.anime_id === animeId && item.episode_id === episodeId)))
   }
 

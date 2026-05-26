@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import EpisodeList from '../components/EpisodeList.jsx'
-import { useFavorites } from '../hooks/useFavorites.jsx'
+import { useFavorites } from '../hooks/useFavorites.js'
 import { getAnimeDetail, getWatchProgress } from '../utils/api.js'
 
 const Sk = ({ className }) => <div className={`skeleton rounded-lg ${className}`} />
@@ -12,9 +12,9 @@ export default function AnimePage() {
   const { toggleFavorite, isFavorite } = useFavorites()
   const navigate = useNavigate()
 
-  const [anime,   setAnime]   = useState(base?.title ? base : null)
+  const [anime, setAnime] = useState(base?.title ? base : null)
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
+  const [error, setError] = useState(null)
   const [progress, setProgress] = useState(null)
   const fav = isFavorite(id)
 
@@ -43,18 +43,18 @@ export default function AnimePage() {
     </div>
   )
 
-  const img   = anime?.image   || `https://img.animeworld.ac/locandine/${id}.jpg`
-  const cover = anime?.cover   || `https://img.animeworld.ac/copertine/${id}.png`
+  const img = anime?.image || `https://img.animeworld.ac/locandine/${id}.jpg`
+  const cover = anime?.cover || `https://img.animeworld.ac/copertine/${id}.png`
 
   const lastWatchedEpisode = anime?.episodes?.find(ep => ep.id === progress?.episode_id)
 
   return (
     <div className="min-h-screen relative">
       {/* Tasto Indietro */}
-      <button onClick={() => navigate(-1)} 
+      <button onClick={() => navigate(-1)}
         className="absolute top-4 left-4 z-10 px-4 py-2 bg-black/50 hover:bg-black/70 text-white rounded-xl font-body text-xs font-semibold backdrop-blur-md border border-white/10 transition-all flex items-center gap-1.5 shadow-lg">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="m15 18-6-6 6-6"/>
+          <path d="m15 18-6-6 6-6" />
         </svg>
         Indietro
       </button>
@@ -75,7 +75,7 @@ export default function AnimePage() {
               {loading && !anime?.image
                 ? <Sk className="w-full h-full" />
                 : <img src={img} alt={anime?.title} className="w-full h-full object-cover"
-                    onError={e => { e.target.src = cover; e.target.onerror = () => { e.target.style.display='none' } }} />
+                  onError={e => { e.target.src = cover; e.target.onerror = () => { e.target.style.display = 'none' } }} />
               }
             </div>
           </div>
@@ -89,17 +89,17 @@ export default function AnimePage() {
 
             {/* Badges */}
             <div className="flex flex-wrap gap-2 mt-3 justify-center md:justify-start">
-              {anime?.type   && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/20 text-accent font-body">{anime.type}</span>}
+              {anime?.type && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/20 text-accent font-body">{anime.type}</span>}
               {anime?.status && <span className="text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-muted font-body">{anime.status}</span>}
-              {anime?.year   && <span className="text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-muted font-body">{anime.year}</span>}
-              {anime?.genres?.slice(0,4).map(g => (
+              {anime?.year && <span className="text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-muted font-body">{anime.year}</span>}
+              {anime?.genres?.slice(0, 4).map(g => (
                 <span key={g} className="text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-muted font-body">{g}</span>
               ))}
             </div>
 
             {/* Descrizione */}
             {loading && !anime?.description
-              ? <div className="mt-4 space-y-2"><Sk className="h-3 w-full"/><Sk className="h-3 w-5/6"/><Sk className="h-3 w-4/6"/></div>
+              ? <div className="mt-4 space-y-2"><Sk className="h-3 w-full" /><Sk className="h-3 w-5/6" /><Sk className="h-3 w-4/6" /></div>
               : anime?.description && <p className="mt-4 text-sm text-text-dim font-body leading-relaxed line-clamp-3">{anime.description}</p>
             }
 
@@ -108,14 +108,14 @@ export default function AnimePage() {
               {lastWatchedEpisode ? (
                 <Link to={`/watch/${id}/${lastWatchedEpisode.id}`} state={{ episodes: anime.episodes, animeTitle: anime.title, animeImage: img }}
                   className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                   Riprendi da Ep. {lastWatchedEpisode.number}
                 </Link>
               ) : (
                 anime?.episodes?.[0] && (
                   <Link to={`/watch/${id}/${anime.episodes[0].id}`} state={{ episodes: anime.episodes, animeTitle: anime.title, animeImage: img }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                     Guarda Ep. 1
                   </Link>
                 )
@@ -123,7 +123,7 @@ export default function AnimePage() {
               {anime?.url && (
                 <a href={anime.url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border hover:border-accent/50 text-text rounded-xl font-body text-sm transition-colors">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
                   AnimeWorld
                 </a>
               )}
@@ -131,7 +131,7 @@ export default function AnimePage() {
                 <button onClick={() => toggleFavorite({ id, title: anime.title, image: img, type: anime.type })}
                   className={`p-2.5 rounded-xl border transition-colors ${fav ? 'bg-accent/20 border-accent text-accent' : 'bg-surface border-border text-muted hover:border-accent/50 hover:text-accent'}`}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                    <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z"/>
+                    <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
                   </svg>
                 </button>
               )}
@@ -146,7 +146,7 @@ export default function AnimePage() {
             {anime?.episodes?.length > 0 && <span className="text-base text-muted font-body font-normal">({anime.episodes.length})</span>}
           </h2>
           {loading
-            ? <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">{Array.from({length:20}).map((_,i)=><Sk key={i} className="aspect-square rounded-xl"/>)}</div>
+            ? <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">{Array.from({ length: 20 }).map((_, i) => <Sk key={i} className="aspect-square rounded-xl" />)}</div>
             : <EpisodeList episodes={anime?.episodes} animeId={id} animeTitle={anime?.title} animeImage={img} />
           }
           {error && <p className="text-sm text-yellow-400 font-body mt-4">⚠️ {error}</p>}
