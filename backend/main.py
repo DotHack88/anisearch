@@ -26,18 +26,24 @@ except Exception:
 def cache_get(key: str) -> Any:
     if redis_client is None:
         return None
-    val = redis_client.get(key)
-    if val is None:
+    try:
+        val = redis_client.get(key)
+        if val is None:
+            return None
+        if isinstance(val, bytes):
+            return val.decode("utf-8")
+        return str(val)
+    except Exception:
         return None
-    if isinstance(val, bytes):
-        return val.decode("utf-8")
-    return str(val)
 
 def cache_set(key: str, value: Any, ex: int = 300) -> None:
     if redis_client:
-        redis_client.set(key, value, ex=ex)
+        try:
+            redis_client.set(key, value, ex=ex)
+        except Exception:
+            pass
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
@@ -47,29 +53,54 @@ from backend.scraper import AnimeWorldScraper
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from backend.database import AnimeDatabase
 
+# Rate limiting
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    _has_slowapi = True
+except ImportError:
+    _has_slowapi = False
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+# --- Configuration from environment ---
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000"
+).split(",")
 
 db = AnimeDatabase()
 scraper = AnimeWorldScraper()
 scheduler = AsyncIOScheduler()
 
 def scheduled_update():
-    logger.info("Avvio job schedulato per ricerca nuovi episodi...")
-    scraper.scrape_latest_updates(db)
+    """Job schedulato: cerca nuovi episodi con gestione errori e retry logging."""
+    try:
+        logger.info("Avvio job schedulato per ricerca nuovi episodi...")
+        scraper.scrape_latest_updates(db)
+        logger.info("Job schedulato completato con successo.")
+    except Exception as e:
+        logger.error(
+            f"Errore nel job schedulato di aggiornamento episodi: {e}. "
+            "Il job verrà ritentato al prossimo intervallo (60 min).",
+            exc_info=True,
+        )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Eseguiamo lo scraping massivo solo se il DB è vuoto
-    if db.count() == 0:
+    if await db.count() == 0:
         logger.info("Database vuoto — Avvio scraping iniziale completo (potrebbe richiedere minuti)...")
         try:
             await asyncio.to_thread(scraper.build_full_index, db)
-            logger.info(f"Database pronto: {db.count()} anime salvati.")
+            logger.info(f"Database pronto: {await db.count()} anime salvati.")
         except Exception as e:
             logger.error(f"Errore popolamento db: {e}")
     else:
-        logger.info(f"Avvio rapido — Database già popolato con {db.count()} anime.")
+        logger.info(f"Avvio rapido — Database già popolato con {await db.count()} anime.")
         
     # Avvio Scheduler
     scheduler.add_job(scheduled_update, 'interval', minutes=60)
@@ -83,15 +114,32 @@ async def lifespan(app: FastAPI):
     logger.info("Scheduler fermato.")
 
 
-app = FastAPI(title="AniSearch API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="AniSearch API", version="2.1.0", lifespan=lifespan)
+
+# --- Rate limiting setup ---
+if _has_slowapi:
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+else:
+    limiter = None
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# --- Auth helper ---
+def _verify_admin(token: str | None):
+    """Verify admin token. If ADMIN_TOKEN env is not set, all requests pass (dev mode)."""
+    if not ADMIN_TOKEN:
+        return  # No token configured — dev mode, allow all
+    if token != ADMIN_TOKEN:
+        raise HTTPException(403, "Forbidden — invalid or missing admin token")
 
 
 @app.get("/")
@@ -99,7 +147,7 @@ def root():
     """API root — welcome message and available endpoints."""
     return {
         "name": "AniSearch API",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "endpoints": [
             "GET  /status",
             "GET  /search?q=...",
@@ -115,66 +163,82 @@ def root():
 
 
 @app.get("/status")
-def status():
+async def status():
     return {
         "status": "online",
-        "cached_anime": db.count(),
-        "cache_ready": db.count() > 0,
+        "cached_anime": await db.count(),
+        "cache_ready": await db.count() > 0,
     }
 
 
-@app.get("/search")
-def search(q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=50)):
-    if not q.strip():
-        raise HTTPException(400, "Query vuota")
-    cache_key = f"search:{q}:{limit}"
-    cached = cache_get(cache_key)
-    if cached:
+if _has_slowapi and limiter:
+    @app.get("/search")
+    @limiter.limit("30/minute")
+    async def search(request: Request, q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=50)):
+        if not q.strip():
+            raise HTTPException(400, "Query vuota")
+        cache_key = f"search:{q}:{limit}"
+        cached = cache_get(cache_key)
+        if cached:
+            import json
+            return json.loads(cached)
+        results = await db.search_exact_or_fuzzy_fallback(q.strip(), limit=limit)
+        response = {"query": q, "count": len(results), "results": results}
         import json
-        return json.loads(cached)
-    results = db.search_exact_or_fuzzy_fallback(q.strip(), limit=limit)
-    response = {"query": q, "count": len(results), "results": results}
-    # Store in Redis for 5 minutes
-    import json
-    cache_set(cache_key, json.dumps(response), ex=300)
-    return response
+        cache_set(cache_key, json.dumps(response), ex=300)
+        return response
+else:
+    @app.get("/search")
+    async def search(q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=50)):
+        if not q.strip():
+            raise HTTPException(400, "Query vuota")
+        cache_key = f"search:{q}:{limit}"
+        cached = cache_get(cache_key)
+        if cached:
+            import json
+            return json.loads(cached)
+        results = await db.search_exact_or_fuzzy_fallback(q.strip(), limit=limit)
+        response = {"query": q, "count": len(results), "results": results}
+        import json
+        cache_set(cache_key, json.dumps(response), ex=300)
+        return response
 
 
 
 @app.get("/new")
-def new_updates(limit: int = Query(20, ge=1, le=100)):
+async def new_updates(limit: int = Query(20, ge=1, le=100)):
     """Return the most recent episodes added by the scheduler."""
-    episodes = db.get_recent_episodes(limit)
+    episodes = await db.get_recent_episodes(limit)
     return {"limit": limit, "episodes": episodes}
 
 @app.get("/watch")
-def get_all_watch(limit: int = Query(12, ge=1, le=50)):
+async def get_all_watch(limit: int = Query(12, ge=1, le=50)):
     """Get recent watch progress items for all anime."""
-    return db.get_recent_watch_progress(limit)
+    return await db.get_recent_watch_progress(limit)
 
 @app.get("/watch/{anime_id}")
-def get_watch(anime_id: str):
+async def get_watch(anime_id: str):
     """Get the last watched episode for an anime."""
-    progress = db.get_watch_progress(anime_id)
+    progress = await db.get_watch_progress(anime_id)
     return progress or {"message": "No progress found"}
 
 @app.delete("/watch/{anime_id}")
-def delete_watch(anime_id: str, episode_id: str = Query(...)):
+async def delete_watch(anime_id: str, episode_id: str = Query(...)):
     """Delete watch progress for given anime (ignore episode_id)."""
-    db.delete_watch_progress(anime_id)
+    await db.delete_watch_progress(anime_id)
     return {"status": "deleted", "anime_id": anime_id}
 
 @app.post("/watch/{anime_id}")
-def save_watch(anime_id: str, episode_id: str = Query(...)):
+async def save_watch(anime_id: str, episode_id: str = Query(...)):
     """Save watch progress for a given anime and episode."""
-    db.save_watch_progress(anime_id, episode_id)
+    await db.save_watch_progress(anime_id, episode_id)
     return {"status": "saved", "anime_id": anime_id, "episode_id": episode_id}
 
 
 # Extend anime_detail to store episodes after fetching
 @app.get("/anime/{anime_id}")
 async def anime_detail(anime_id: str):
-    base = db.get_by_id(anime_id)
+    base = await db.get_by_id(anime_id)
     if not base:
         raise HTTPException(404, "Anime non trovato")
     try:
@@ -184,7 +248,7 @@ async def anime_detail(anime_id: str):
         for ep in episodes:
             ep["anime_id"] = anime_id
         if episodes:
-            db.add_episodes(episodes)
+            await db.add_episodes(episodes)
         return {**base, **detail}
     except Exception as e:
         logger.error(f"Errore dettaglio {anime_id}: {e}")
@@ -242,50 +306,66 @@ async def download_episode(episode_id: str):
     return StreamingResponse(stream(), media_type="video/mp4", headers=headers)
 
 
-@app.get("/catalog")
-def catalog(
-    page: int = Query(0, ge=0),
-    per_page: int = Query(50, ge=10, le=100),
-    sort: str = Query("title"),
-    genre: str = Query(""),
-    status: str = Query(""),
-    year: str = Query(""),
-    search: str = Query(""),
-):
-    """Paginated catalog with filters."""
-    return db.get_all(
-        page=page,
-        per_page=per_page,
-        sort_by=sort,
-        genre=genre,
-        status=status,
-        year=year,
-        search=search,
-    )
+if _has_slowapi and limiter:
+    @app.get("/catalog")
+    @limiter.limit("60/minute")
+    async def catalog(
+        request: Request,
+        page: int = Query(0, ge=0),
+        per_page: int = Query(50, ge=10, le=100),
+        sort: str = Query("title"),
+        genre: str = Query(""),
+        status: str = Query(""),
+        year: str = Query(""),
+        search: str = Query(""),
+    ):
+        """Paginated catalog with filters."""
+        return await db.get_all(
+            page=page,
+            per_page=per_page,
+            sort_by=sort,
+            genre=genre,
+            status=status,
+            year=year,
+            search=search,
+        )
+else:
+    @app.get("/catalog")
+    async def catalog(
+        page: int = Query(0, ge=0),
+        per_page: int = Query(50, ge=10, le=100),
+        sort: str = Query("title"),
+        genre: str = Query(""),
+        status: str = Query(""),
+        year: str = Query(""),
+        search: str = Query(""),
+    ):
+        """Paginated catalog with filters."""
+        return await db.get_all(
+            page=page,
+            per_page=per_page,
+            sort_by=sort,
+            genre=genre,
+            status=status,
+            year=year,
+            search=search,
+        )
 
 
 @app.get("/filters")
-def filters():
+async def filters():
     """Get all available filter values."""
     return {
-        "genres": db.get_all_genres(),
-        "years": db.get_all_years(),
-        "statuses": db.get_all_statuses(),
+        "genres": await db.get_all_genres(),
+        "years": await db.get_all_years(),
+        "statuses": await db.get_all_statuses(),
     }
 
 
 @app.post("/cache/refresh")
-async def refresh():
-    db.clear()
+async def refresh(x_admin_token: str | None = Header(None)):
+    """Rebuild the entire database from scratch. Requires ADMIN_TOKEN if configured."""
+    _verify_admin(x_admin_token)
+    await db.clear()
     await asyncio.to_thread(scraper.build_full_index, db)
-    return {"status": "ok", "cached_anime": db.count()}
-
-
-@app.get("/debug/page/{letter}")
-async def debug_page(letter: str = "N"):
-    """
-    Debug: analizza la struttura HTML di una pagina AZ.
-    Apri http://localhost:8000/debug/page/N per vedere cosa trova il scraper.
-    """
-    result = await asyncio.to_thread(scraper.debug_page, letter.upper())
-    return result
+    return {"status": "ok", "cached_anime": await db.count()}

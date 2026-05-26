@@ -1,321 +1,250 @@
-import sqlite3
-import json
 import os
+import json
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+
+from sqlmodel import SQLModel, Field, select, create_engine
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel.ext.asyncio.engine import AsyncEngine
 
 logger = logging.getLogger(__name__)
 
+# Database file path (relative to this file)
 DB_PATH = os.path.join(os.path.dirname(__file__), "anisearch.db")
 
+# Async engine using aiosqlite
+engine: AsyncEngine = create_engine(
+    f"sqlite+aiosqlite:///{DB_PATH}",
+    echo=False,
+    future=True,
+    connect_args={"check_same_thread": False},
+)
 
+# ---------- Models ----------
+class Anime(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    title: str
+    url: str
+    image: Optional[str] = None
+    type: Optional[str] = None
+    status: Optional[str] = None
+    year: Optional[str] = None
+    rating: Optional[str] = None
+    genres: Optional[str] = None  # JSON string stored in TEXT column
+
+class Episode(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    anime_id: str = Field(foreign_key="anime.id")
+    title: Optional[str] = None
+    url: Optional[str] = None
+    season: Optional[int] = None
+    episode: Optional[int] = None
+    added_at: Optional[str] = None  # SQLite timestamp default handled by DB
+
+class WatchProgress(SQLModel, table=True):
+    anime_id: str = Field(primary_key=True, foreign_key="anime.id")
+    episode_id: str = Field(foreign_key="episode.id")
+    updated_at: Optional[str] = None
+
+# ---------- Helper ----------
+def _parse_genres(genres_str: Optional[str]) -> List[str]:
+    if not genres_str:
+        return []
+    try:
+        return json.loads(genres_str)
+    except Exception:
+        return []
+
+def _serialize_genres(genres: List[str]) -> str:
+    return json.dumps(genres)
+
+def _row_to_dict(row: Any) -> dict:
+    """Convert SQLModel instance to plain dict, handling JSON genres."""
+    if row is None:
+        return {}
+    d = row.dict()
+    d["genres"] = _parse_genres(d.get("genres"))
+    return d
+
+# ---------- Database class ----------
 class AnimeDatabase:
-    def __init__(self, db_path: str = DB_PATH):
-        self.db_path = db_path
-        self._init_db()
+    def __init__(self):
+        # Ensure tables exist (run sync within async context)
+        import asyncio
+        asyncio.run(self._init_db())
 
-    def get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    async def _init_db(self) -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+        logger.info("Database tables created / verified.")
 
-    def _init_db(self):
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS anime (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    url TEXT NOT NULL,
-                    image TEXT,
-                    type TEXT,
-                    status TEXT,
-                    year TEXT,
-                    rating TEXT,
-                    genres TEXT
-                )
-            """)
-            
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_title ON anime(title)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_year ON anime(year)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON anime(status)")
-            # New table for episodes
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS episodes (
-                    id TEXT PRIMARY KEY,
-                    anime_id TEXT NOT NULL,
-                    title TEXT,
-                    url TEXT,
-                    season INTEGER,
-                    episode INTEGER,
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(anime_id) REFERENCES anime(id)
-                )
-            """)
-            # Table for watch progress (last viewed episode per anime)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS watch_progress (
-                    anime_id TEXT PRIMARY KEY,
-                    episode_id TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(anime_id) REFERENCES anime(id),
-                    FOREIGN KEY(episode_id) REFERENCES episodes(id)
-                )
-            """)
-            conn.commit()
+    # ----- Basic operations -----
+    async def count(self) -> int:
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Anime))
+            return len(result.all())
 
-    def _row_to_dict(self, row: sqlite3.Row) -> dict:
-        d = dict(row)
-        if d.get("genres"):
-            try:
-                d["genres"] = json.loads(d["genres"])
-            except:
-                d["genres"] = []
-        else:
-            d["genres"] = []
-        return d
-
-    def add_batch(self, anime_list: List[Dict]) -> None:
-        if not anime_list:
-            return
-            
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            for a in anime_list:
-                genres_json = json.dumps(a.get("genres", []))
-                cursor.execute("""
-                    INSERT OR REPLACE INTO anime 
-                    (id, title, url, image, type, status, year, rating, genres)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    a.get("id"),
-                    a.get("title", ""),
-                    a.get("url", ""),
-                    a.get("image", ""),
-                    a.get("type", ""),
-                    a.get("status", ""),
-                    a.get("year", ""),
-                    a.get("rating", ""),
-                    genres_json
-                ))
-            conn.commit()
-
-    def get_by_id(self, anime_id: str) -> Optional[Dict]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM anime WHERE id = ?", (anime_id,))
-            row = cursor.fetchone()
-            return self._row_to_dict(row) if row else None
-
-    def get_all_genres(self) -> List[str]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT genres FROM anime WHERE genres IS NOT NULL")
-            all_genres = set()
-            for (g_str,) in cursor.fetchall():
-                if g_str:
-                    try:
-                        g_list = json.loads(g_str)
-                        all_genres.update(g_list)
-                    except:
-                        pass
-            return sorted(all_genres)
-
-    def get_all_years(self) -> List[str]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT year FROM anime WHERE year IS NOT NULL AND year != ''")
-            years = [row[0] for row in cursor.fetchall()]
-            return sorted(years, reverse=True)
-
-    def get_all_statuses(self) -> List[str]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT status FROM anime WHERE status IS NOT NULL AND status != ''")
-            statuses = [row[0] for row in cursor.fetchall()]
-            return sorted(statuses)
-
-    def search_exact_or_fuzzy_fallback(self, query: str, limit: int = 20) -> List[Dict]:
-        # For a truly robust fuzzy search in SQLite without FTS5, we will fetch titles
-        # and do a quick Python-side filter. It's perfectly fine for < 50k rows.
-        # But first, we try a simple LIKE.
-        q = f"%{query}%"
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM anime WHERE title LIKE ? LIMIT ?", (q, limit))
-            rows = cursor.fetchall()
-            return [self._row_to_dict(r) for r in rows]
-
-    def get_all(self, page: int = 0, per_page: int = 50, sort_by: str = "title",
-                genre: str = "", status: str = "", year: str = "", search: str = "") -> dict:
-        
-        query = "SELECT * FROM anime WHERE 1=1"
-        count_query = "SELECT COUNT(*) FROM anime WHERE 1=1"
-        params = []
-        
-        if search:
-            query += " AND title LIKE ?"
-            count_query += " AND title LIKE ?"
-            params.append(f"%{search}%")
-            
-        if genre:
-            query += " AND genres LIKE ?"
-            count_query += " AND genres LIKE ?"
-            # JSON array contains the genre
-            params.append(f'%"{genre}"%')
-            
-        if status:
-            query += " AND status = ?"
-            count_query += " AND status = ?"
-            params.append(status)
-            
-        if year:
-            query += " AND year = ?"
-            count_query += " AND year = ?"
-            params.append(year)
-            
-        # Sorting
-        if sort_by == "title":
-            query += " ORDER BY title ASC"
-        elif sort_by == "year":
-            query += " ORDER BY year DESC"
-        elif sort_by == "rating":
-            # Cast rating to float for correct sorting
-            query += " ORDER BY CAST(rating AS FLOAT) DESC"
-            
-        # Pagination
-        query += f" LIMIT {per_page} OFFSET {page * per_page}"
-        
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Get total count
-            cursor.execute(count_query, params)
-            total = cursor.fetchone()[0]
-            
-            # Get data
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-            items = [self._row_to_dict(r) for r in rows]
-            
-        return {
-            "items": items,
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-            "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
-        }
-
-    def count(self) -> int:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM anime")
-            return cursor.fetchone()[0]
-
-    def clear(self) -> None:
-        """Delete all data from anime, episodes, and watch_progress tables."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM watch_progress")
-            cursor.execute("DELETE FROM episodes")
-            cursor.execute("DELETE FROM anime")
-            conn.commit()
+    async def clear(self) -> None:
+        async with AsyncSession(engine) as session:
+            await session.exec("DELETE FROM watch_progress")
+            await session.exec("DELETE FROM episode")
+            await session.exec("DELETE FROM anime")
+            await session.commit()
         logger.info("Database cleared — all tables emptied.")
 
-    def add_episodes(self, episodes: List[Dict]) -> None:
-        """Insert or update episodes in the episodes table. Uses INSERT OR REPLACE to avoid duplicates."""
+    # ----- Anime -----
+    async def add_batch(self, anime_list: List[Dict]) -> None:
+        if not anime_list:
+            return
+        async with AsyncSession(engine) as session:
+            for a in anime_list:
+                obj = Anime(
+                    id=a.get("id"),
+                    title=a.get("title", ""),
+                    url=a.get("url", ""),
+                    image=a.get("image", ""),
+                    type=a.get("type", ""),
+                    status=a.get("status", ""),
+                    year=a.get("year", ""),
+                    rating=a.get("rating", ""),
+                    genres=_serialize_genres(a.get("genres", [])),
+                )
+                session.add(obj)
+            await session.commit()
+
+    async def get_by_id(self, anime_id: str) -> Optional[dict]:
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Anime).where(Anime.id == anime_id))
+            anime = result.one_or_none()
+            return _row_to_dict(anime) if anime else None
+
+    async def get_all_genres(self) -> List[str]:
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Anime.genres))
+            all_genres = set()
+            for g in result.all():
+                all_genres.update(_parse_genres(g))
+            return sorted(all_genres)
+
+    async def get_all_years(self) -> List[str]:
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Anime.year).where(Anime.year != None, Anime.year != ""))
+            years = {y for (y,) in result.all()}
+            return sorted(years, reverse=True)
+
+    async def get_all_statuses(self) -> List[str]:
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Anime.status).where(Anime.status != None, Anime.status != ""))
+            statuses = {s for (s,) in result.all()}
+            return sorted(statuses)
+
+    async def search_exact_or_fuzzy_fallback(self, query: str, limit: int = 20) -> List[dict]:
+        pattern = f"%{query}%"
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Anime).where(Anime.title.like(pattern)).limit(limit))
+            rows = result.all()
+            return [_row_to_dict(r) for r in rows]
+
+    async def get_all(
+        self,
+        page: int = 0,
+        per_page: int = 50,
+        sort_by: str = "title",
+        genre: str = "",
+        status: str = "",
+        year: str = "",
+        search: str = "",
+    ) -> dict:
+        async with AsyncSession(engine) as session:
+            stmt = select(Anime)
+            if search:
+                stmt = stmt.where(Anime.title.like(f"%{search}%"))
+            if genre:
+                stmt = stmt.where(Anime.genres.like(f'%"{genre}"%'))
+            if status:
+                stmt = stmt.where(Anime.status == status)
+            if year:
+                stmt = stmt.where(Anime.year == year)
+            # Sorting
+            if sort_by == "title":
+                stmt = stmt.order_by(Anime.title.asc())
+            elif sort_by == "year":
+                stmt = stmt.order_by(Anime.year.desc())
+            elif sort_by == "rating":
+                stmt = stmt.order_by(Anime.rating.cast(float).desc())
+            # Total count
+            total_res = await session.exec(select([func.count()]).select_from(stmt.subquery()))
+            total = total_res.one()
+            # Pagination
+            stmt = stmt.offset(page * per_page).limit(per_page)
+            rows = await session.exec(stmt)
+            items = [_row_to_dict(r) for r in rows.all()]
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
+            }
+
+    # ----- Episodes -----
+    async def add_episodes(self, episodes: List[Dict]) -> None:
         if not episodes:
             return
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
+        async with AsyncSession(engine) as session:
             for ep in episodes:
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO episodes (id, anime_id, title, url, season, episode)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        ep.get("id"),
-                        ep.get("anime_id"),
-                        ep.get("title", ""),
-                        ep.get("url", ""),
-                        ep.get("season"),
-                        ep.get("episode") or ep.get("number"),
-                    ),
+                obj = Episode(
+                    id=ep.get("id"),
+                    anime_id=ep.get("anime_id"),
+                    title=ep.get("title", ""),
+                    url=ep.get("url", ""),
+                    season=ep.get("season"),
+                    episode=ep.get("episode") or ep.get("number"),
                 )
-            conn.commit()
+                session.add(obj)
+            await session.commit()
 
-    def get_recent_episodes(self, limit: int = 20) -> List[Dict]:
-        """Return the most recent episodes ordered by added_at descending."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT e.*, a.title as anime_title, a.image as anime_image
-                FROM episodes e
-                JOIN anime a ON e.anime_id = a.id
-                ORDER BY e.added_at DESC
-                LIMIT ?
-                """,
-                (limit,),
+    async def get_recent_episodes(self, limit: int = 20) -> List[dict]:
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(Episode, Anime.title.label("anime_title"), Anime.image.label("anime_image"))
+                .join(Anime, Episode.anime_id == Anime.id)
+                .order_by(Episode.added_at.desc())
+                .limit(limit)
             )
-            rows = cursor.fetchall()
-            result = []
-            for r in rows:
-                d = dict(r)
-                # Parse JSON if needed
-                result.append(d)
-            return result
+            result = await session.exec(stmt)
+            rows = result.all()
+            return [dict(r) for r in rows]
 
-    def delete_watch_progress(self, anime_id: str) -> None:
-        """Delete watch progress entry for given anime_id."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM watch_progress WHERE anime_id = ?", (anime_id,))
-            conn.commit()
+    # ----- Watch Progress -----
+    async def save_watch_progress(self, anime_id: str, episode_id: str) -> None:
+        async with AsyncSession(engine) as session:
+            wp = WatchProgress(anime_id=anime_id, episode_id=episode_id)
+            session.add(wp)
+            await session.commit()
 
-
-    def get_watch_progress(self, anime_id: str) -> Optional[Dict]:
-        """Retrieve the watch progress for a given anime."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT episode_id, updated_at FROM watch_progress WHERE anime_id = ?",
-                (anime_id,),
-            )
-            row = cursor.fetchone()
-            if row:
-                return {"episode_id": row["episode_id"], "updated_at": row["updated_at"]}
+    async def get_watch_progress(self, anime_id: str) -> Optional[dict]:
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id))
+            wp = result.one_or_none()
+            if wp:
+                return {"episode_id": wp.episode_id, "updated_at": wp.updated_at}
             return None
 
-    def get_recent_watch_progress(self, limit: int = 10) -> List[Dict]:
-        """Retrieve all watch progress items sorted by updated_at descending, including anime info and episode number."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT wp.anime_id, wp.episode_id, wp.updated_at,
-                       a.title as anime_title, a.image as anime_image,
-                       e.episode as episode_number
-                FROM watch_progress wp
-                JOIN anime a ON wp.anime_id = a.id
-                JOIN episodes e ON wp.episode_id = e.id
-                ORDER BY wp.updated_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            )
-            return [dict(row) for row in cursor.fetchall()]
+    async def delete_watch_progress(self, anime_id: str) -> None:
+        async with AsyncSession(engine) as session:
+            await session.exec(delete(WatchProgress).where(WatchProgress.anime_id == anime_id))
+            await session.commit()
 
-    def save_watch_progress(self, anime_id: str, episode_id: str) -> None:
-        """Insert or replace a watch progress entry for a given anime and episode."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO watch_progress (anime_id, episode_id, updated_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-                """,
-                (anime_id, episode_id),
+    async def get_recent_watch_progress(self, limit: int = 10) -> List[dict]:
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(WatchProgress, Anime.title.label("anime_title"), Anime.image.label("anime_image"), Episode.episode.label("episode_number"))
+                .join(Anime, WatchProgress.anime_id == Anime.id)
+                .join(Episode, WatchProgress.episode_id == Episode.id)
+                .order_by(WatchProgress.updated_at.desc())
+                .limit(limit)
             )
-            conn.commit()
+            result = await session.exec(stmt)
+            rows = result.all()
+            return [dict(r) for r in rows]
