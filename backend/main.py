@@ -126,41 +126,25 @@ async def lifespan(app: FastAPI):
             RuntimeWarning
         )
         
-    # Avvio Scheduler — solo in un processo worker (evita job doppi con WEB_CONCURRENCY > 1)
-    # Render/gunicorn impostano le variabili APP_WORKER_ID o simili; noi usiamo un approccio
-    # semplice: lo scheduler viene avviato solo se non esiste già un lock nel DB/env.
-    _worker_id = os.getenv("APP_WORKER_ID", os.getenv("GUNICORN_WORKER_ID", ""))
-    _is_primary_worker = (_worker_id == "" or _worker_id == "0" or _worker_id == "1")
-    # Se WEB_CONCURRENCY=1, entrambi i worker coincidono — usiamo un flag di processo
-    import multiprocessing
-    _proc_name = multiprocessing.current_process().name
-    # uvicorn spawns workers named 'SpawnProcess-1', 'SpawnProcess-2', ...
-    # Solo SpawnProcess-1 (o MainProcess in modalità single) avvia lo scheduler
-    _is_scheduler_worker = (
-        _proc_name in ("MainProcess", "SpawnProcess-1")
-        or _worker_id in ("", "0", "1")
+    # Avvio Scheduler (un solo worker — UVICORN_WORKERS=1 nel Dockerfile)
+    scheduler.add_job(
+        scheduled_update,
+        'interval',
+        minutes=15,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=120,
     )
-    if _is_scheduler_worker:
-        scheduler.add_job(
-            scheduled_update,
-            'interval',
-            minutes=15,
-            coalesce=True,
-            max_instances=1,
-            misfire_grace_time=120,
-        )
-        scheduler.add_job(
-            daily_catalog_sync,
-            'interval',
-            hours=24,
-            coalesce=True,
-            max_instances=1,
-            misfire_grace_time=600,
-        )
-        scheduler.start()
-        logger.info("Scheduler avviato: controllerà nuovi episodi ogni 15 minuti e farà un sync completo ogni 24 ore.")
-    else:
-        logger.info(f"Worker {_proc_name!r} — scheduler non avviato (worker secondario).")
+    scheduler.add_job(
+        daily_catalog_sync,
+        'interval',
+        hours=24,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=600,
+    )
+    scheduler.start()
+    logger.info("Scheduler avviato: controllerà nuovi episodi ogni 15 minuti e farà un sync completo ogni 24 ore.")
     
     yield
     
