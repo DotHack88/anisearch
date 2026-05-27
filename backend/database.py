@@ -252,14 +252,17 @@ class AnimeDatabase:
 
     # ----- Watch Progress -----
     async def save_watch_progress(self, session_id: str, anime_id: str, episode_id: str) -> None:
+        import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
             wp = result.one_or_none()
+            now_str = datetime.datetime.utcnow().isoformat()
             if wp:
                 wp.episode_id = episode_id
+                wp.updated_at = now_str
             else:
-                wp = WatchProgress(session_id=session_id, anime_id=anime_id, episode_id=episode_id)
+                wp = WatchProgress(session_id=session_id, anime_id=anime_id, episode_id=episode_id, updated_at=now_str)
                 session.add(wp)
             await session.commit()
 
@@ -291,4 +294,19 @@ class AnimeDatabase:
             )
             result = await session.exec(stmt)
             rows = result.all()
-            return [dict(r) for r in rows]
+            watch_progresses = []
+            for row in rows:
+                if hasattr(row, '_asdict'):
+                    watch_progresses.append(row._asdict())
+                elif isinstance(row, tuple) and len(row) >= 1:
+                    wp = row[0].dict() if hasattr(row[0], 'dict') else {}
+                    if len(row) > 1:
+                        wp["anime_title"] = row[1]
+                    if len(row) > 2:
+                        wp["anime_image"] = row[2]
+                    if len(row) > 3:
+                        wp["episode_number"] = row[3]
+                    watch_progresses.append(wp)
+                else:
+                    watch_progresses.append(dict(row) if hasattr(row, '__iter__') else {})
+            return watch_progresses
