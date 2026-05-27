@@ -14,12 +14,16 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    # SQLAlchemy requires postgresql+asyncpg:// for async postgres connections
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
     elif DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
         
+    # asyncpg expects 'ssl=require' not 'sslmode=require'
+    DATABASE_URL = DATABASE_URL.replace("sslmode=require", "ssl=require")
+    # asyncpg does not support channel_binding
+    DATABASE_URL = DATABASE_URL.replace("&channel_binding=require", "")
+
     engine: AsyncEngine = create_async_engine(
         DATABASE_URL,
         echo=False,
