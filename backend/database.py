@@ -267,22 +267,44 @@ class AnimeDatabase:
             }
 
     # ----- Episodes -----
+    @staticmethod
+    def _to_int(value) -> Optional[int]:
+        """Safely cast a value to int, returning None on failure."""
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+
     async def add_episodes(self, episodes: List[Dict]) -> None:
         await self._ensure_init()
         if not episodes:
             return
-        async with AsyncSession(engine) as session:
-            for ep in episodes:
-                obj = Episode(
-                    id=ep.get("id"),
-                    anime_id=ep.get("anime_id"),
-                    title=ep.get("title", ""),
-                    url=ep.get("url", ""),
-                    season=ep.get("season"),
-                    episode=ep.get("episode") or ep.get("number"),
-                )
-                await session.merge(obj)
-            await session.commit()
+
+        rows = [
+            {
+                "id": ep.get("id"),
+                "anime_id": ep.get("anime_id"),
+                "title": ep.get("title", ""),
+                "url": ep.get("url", ""),
+                "season": self._to_int(ep.get("season")),
+                "episode": self._to_int(ep.get("episode") or ep.get("number")),
+                "added_at": ep.get("added_at"),
+            }
+            for ep in episodes
+            if ep.get("id") and ep.get("anime_id")
+        ]
+        if not rows:
+            return
+
+        async with engine.begin() as conn:
+            dialect_name = engine.dialect.name
+            if dialect_name == "postgresql":
+                stmt = pg_insert(Episode).values(rows).on_conflict_do_nothing(index_elements=["id"])
+            else:
+                stmt = sqlite_insert(Episode).values(rows).on_conflict_do_nothing(index_elements=["id"])
+            await conn.execute(stmt)
 
     async def get_recent_episodes(self, limit: int = 20) -> List[dict]:
         await self._ensure_init()
