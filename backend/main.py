@@ -86,9 +86,22 @@ async def scheduled_update():
     except Exception as e:
         logger.error(
             f"Errore nel job schedulato di aggiornamento episodi: {e}. "
-            "Il job verrà ritentato al prossimo intervallo (60 min).",
+            "Il job verrà ritentato al prossimo intervallo (15 min).",
             exc_info=True,
         )
+
+async def daily_catalog_sync():
+    """Job schedulato: scansiona l'intero catalogo (ogni 24h) per trovare nuovi anime sfuggiti agli aggiornamenti recenti."""
+    try:
+        logger.info("Avvio sincronizzazione completa del catalogo in background (job 24h)...")
+        await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
+        logger.info("Sincronizzazione completa del catalogo terminata con successo.")
+    except Exception as e:
+        logger.error(
+            f"Errore durante la sincronizzazione completa del catalogo: {e}", 
+            exc_info=True
+        )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -111,9 +124,10 @@ async def lifespan(app: FastAPI):
         )
         
     # Avvio Scheduler
-    scheduler.add_job(scheduled_update, 'interval', minutes=60)
+    scheduler.add_job(scheduled_update, 'interval', minutes=15)
+    scheduler.add_job(daily_catalog_sync, 'interval', hours=24)
     scheduler.start()
-    logger.info("Scheduler avviato: controllerà nuovi episodi ogni 60 minuti.")
+    logger.info("Scheduler avviato: controllerà nuovi episodi ogni 15 minuti e farà un sync completo ogni 24 ore.")
     
     yield
     
@@ -170,10 +184,12 @@ def root():
             "GET  /catalog",
             "GET  /filters",
             "GET  /new",
+            "GET  /latest-episodes",
             "GET  /anime/{anime_id}",
             "GET  /episode/{episode_id}/video",
             "GET  /watch/{anime_id}",
             "POST /watch/{anime_id}?episode_id=...",
+            "DELETE /watch/{anime_id}?episode_id=...",
         ],
     }
 

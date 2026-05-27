@@ -510,7 +510,7 @@ class AnimeWorldScraper:
         if not soup:
             return {"error": "Failed to fetch homepage"}
 
-        widget = soup.find("div", class_="widget hotnew")
+        widget = soup.select_one("div.widget.hotnew")
         if not widget:
             return {"error": "Widget non trovato"}
 

@@ -52,12 +52,17 @@ export default function LatestEpisodes() {
   return (
     <div className="mb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-display font-bold text-text flex items-center gap-2">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
-          Ultimi Episodi
-        </h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-display font-bold text-text flex items-center gap-2">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+            Ultimi Episodi
+          </h2>
+          <Link to="/nuovi-episodi" className="hidden sm:inline-block text-xs text-muted hover:text-accent font-body transition-colors mt-1">
+            Vedi tutti →
+          </Link>
+        </div>
         
         <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
           {tabs.map(tab => (
