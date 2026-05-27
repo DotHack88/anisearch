@@ -4,7 +4,7 @@ import logging
 from typing import List, Dict, Optional, Any
 
 from sqlmodel import SQLModel, Field, select
-from sqlalchemy import func, delete, text, inspect
+from sqlalchemy import func, delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel.ext.asyncio.session import AsyncSession
