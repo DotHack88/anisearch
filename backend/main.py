@@ -107,12 +107,15 @@ async def daily_catalog_sync():
 async def lifespan(app: FastAPI):
     # Eseguiamo lo scraping massivo solo se il DB è vuoto
     if await db.count() == 0:
-        logger.info("Database vuoto — Avvio scraping iniziale completo (potrebbe richiedere minuti)...")
-        try:
-            await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
-            logger.info(f"Database pronto: {await db.count()} anime salvati.")
-        except Exception as e:
-            logger.error(f"Errore popolamento db: {e}")
+        logger.info("Database vuoto — Avvio scraping iniziale completo in background...")
+        async def run_initial_scrape():
+            try:
+                await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
+                logger.info(f"Database pronto: {await db.count()} anime salvati.")
+            except Exception as e:
+                logger.error(f"Errore popolamento db in background: {e}")
+        
+        asyncio.create_task(run_initial_scrape())
     else:
         logger.info(f"Avvio rapido — Database già popolato con {await db.count()} anime.")
         
