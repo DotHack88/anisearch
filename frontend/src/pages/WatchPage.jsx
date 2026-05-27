@@ -212,7 +212,7 @@ export default function WatchPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 page-enter">
       {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-2 text-sm text-text-dim mb-6 font-body">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-text-dim mb-6 font-body">
         <Link to="/" className="hover:text-accent transition-colors">Home</Link>
         <span>/</span>
         <Link to="/catalog" className="hover:text-accent transition-colors">Catalogo</Link>

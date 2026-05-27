@@ -78,7 +78,7 @@ export default function CatalogPage() {
       {/* Title */}
       <div className="flex flex-col md:flex-row md:items-baseline justify-between mb-8 gap-4">
         <div>
-          <h1 className="font-display text-4xl md:text-5xl tracking-wide text-text">
+          <h1 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-wide text-text">
             CATALOGO <span className="text-accent">ANIME</span>
           </h1>
           <p className="text-xs text-text-dim mt-1 font-body">
@@ -169,7 +169,7 @@ export default function CatalogPage() {
         </div>
 
         {/* Reset button */}
-        <div className="flex items-end">
+        <div className="flex items-end col-span-2 sm:col-span-3 md:col-span-1">
           <button
             onClick={handleClearFilters}
             className="w-full bg-border hover:bg-border/80 border border-white/5 text-text font-medium text-xs py-2.5 rounded-xl transition-all font-body flex items-center justify-center gap-2">

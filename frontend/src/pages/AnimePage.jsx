@@ -84,7 +84,7 @@ export default function AnimePage() {
           <div className="flex-1 pt-2 text-center md:text-left">
             {loading && !anime?.title
               ? <Sk className="h-9 w-3/4 mb-3" />
-              : <h1 className="font-display text-4xl md:text-5xl text-text tracking-wide leading-tight">{anime?.title}</h1>
+              : <h1 className="font-display text-3xl sm:text-4xl md:text-5xl text-text tracking-wide leading-tight">{anime?.title}</h1>
             }
 
             {/* Badges */}
