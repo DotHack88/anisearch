@@ -4,7 +4,9 @@ import logging
 from typing import List, Dict, Optional, Any
 
 from sqlmodel import SQLModel, Field, select
-from sqlalchemy import func, delete
+from sqlalchemy import func, delete, text, inspect
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
@@ -121,26 +123,66 @@ class AnimeDatabase:
         await self._ensure_init()
         if not anime_list:
             return
-        async with AsyncSession(engine) as session:
-            for a in anime_list:
-                obj = Anime(
-                    id=a.get("id"),
-                    title=a.get("title", ""),
-                    url=a.get("url", ""),
-                    image=a.get("image", ""),
-                    type=a.get("type", ""),
-                    status=a.get("status", ""),
-                    year=a.get("year", ""),
-                    rating=a.get("rating", ""),
-                    genres=_serialize_genres(a.get("genres", [])),
-                )
+
+        # Build list of row dicts for bulk upsert
+        rows = [
+            {
+                "id": a.get("id"),
+                "title": a.get("title", ""),
+                "url": a.get("url", ""),
+                "image": a.get("image", ""),
+                "type": a.get("type", ""),
+                "status": a.get("status", ""),
+                "year": a.get("year", ""),
+                "rating": a.get("rating", ""),
+                "genres": _serialize_genres(a.get("genres", [])),
+            }
+            for a in anime_list
+            if a.get("id")  # Skip rows without ID
+        ]
+        if not rows:
+            return
+
+        async with engine.begin() as conn:
+            dialect_name = engine.dialect.name
+            if dialect_name == "postgresql":
+                stmt = pg_insert(Anime).values(rows)
                 if mode == "ignore":
-                    existing = await session.get(Anime, obj.id)
-                    if not existing:
-                        session.add(obj)
+                    stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
                 else:
-                    await session.merge(obj)
-            await session.commit()
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["id"],
+                        set_={
+                            "title": stmt.excluded.title,
+                            "url": stmt.excluded.url,
+                            "image": stmt.excluded.image,
+                            "type": stmt.excluded.type,
+                            "status": stmt.excluded.status,
+                            "year": stmt.excluded.year,
+                            "rating": stmt.excluded.rating,
+                            "genres": stmt.excluded.genres,
+                        },
+                    )
+            else:
+                # SQLite: use INSERT OR REPLACE
+                stmt = sqlite_insert(Anime).values(rows)
+                if mode == "ignore":
+                    stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
+                else:
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["id"],
+                        set_={
+                            "title": stmt.excluded.title,
+                            "url": stmt.excluded.url,
+                            "image": stmt.excluded.image,
+                            "type": stmt.excluded.type,
+                            "status": stmt.excluded.status,
+                            "year": stmt.excluded.year,
+                            "rating": stmt.excluded.rating,
+                            "genres": stmt.excluded.genres,
+                        },
+                    )
+            await conn.execute(stmt)
 
     async def get_by_id(self, anime_id: str) -> Optional[dict]:
         await self._ensure_init()
