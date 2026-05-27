@@ -10,16 +10,30 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 logger = logging.getLogger(__name__)
 
-# Database file path (relative to this file)
-DB_PATH = os.path.join(os.path.dirname(__file__), "anisearch.db")
+# Database connection string
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Async engine using aiosqlite
-engine: AsyncEngine = create_async_engine(
-    f"sqlite+aiosqlite:///{DB_PATH}",
-    echo=False,
-    future=True,
-    connect_args={"check_same_thread": False},
-)
+if DATABASE_URL:
+    # SQLAlchemy requires postgresql+asyncpg:// for async postgres connections
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+        
+    engine: AsyncEngine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        future=True,
+    )
+else:
+    # Fallback to local SQLite
+    DB_PATH = os.path.join(os.path.dirname(__file__), "anisearch.db")
+    engine: AsyncEngine = create_async_engine(
+        f"sqlite+aiosqlite:///{DB_PATH}",
+        echo=False,
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
 
 # ---------- Models ----------
 class Anime(SQLModel, table=True):
