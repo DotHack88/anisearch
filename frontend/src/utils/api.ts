@@ -1,7 +1,12 @@
 import axios from 'axios'
 
+// VITE_API_URL deve essere impostata come variabile d'ambiente su Vercel
+// (es: https://anisearch-8jph.onrender.com)
+// Fallback: URL diretto di Render (usato se la var non è configurata)
+const API_BASE = import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrender.com'
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: API_BASE,
   timeout: 15000,
   withCredentials: true,
 })

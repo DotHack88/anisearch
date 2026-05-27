@@ -73,7 +73,7 @@ export async function startDownload(animeId, animeTitle, animeImage, episodeId, 
   await saveDownload(newDownload);
 
   try {
-    const backendUrl = import.meta.env.VITE_API_URL || '/api';
+    const backendUrl = import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrender.com';
     const downloadUrl = `${backendUrl}/episode/${episodeId}/download`;
 
     const response = await axios.get(downloadUrl, {
