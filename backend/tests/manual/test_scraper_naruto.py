@@ -5,11 +5,11 @@ import sys
 # Set working directory to project root
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import AnimeDatabase
+
 from backend.scraper import AnimeWorldScraper
 
 async def main():
-    db = AnimeDatabase()
+
     scraper = AnimeWorldScraper()
     detail = scraper.get_anime_detail("https://www.animeworld.ac/play/boruto-naruto-next-generations.lYBFQ")
     print(f"Desc: {detail.get('description', '')[:50]}")

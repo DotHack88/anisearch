@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, Cookie, Response
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, Cookie, Response, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 # Add project root to Python path
@@ -431,3 +431,11 @@ async def refresh(request: Request):
     await db.clear()
     await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
     return {"status": "ok", "cached_anime": await db.count()}
+
+@app.post("/sync-catalog", dependencies=[Depends(verify_admin_token)])
+@limiter.limit("5/day") if limiter else lambda f: f
+async def sync_catalog(request: Request, background_tasks: BackgroundTasks):
+    """Manualmente avvia una sincronizzazione completa del catalogo (merge) in background."""
+    background_tasks.add_task(daily_catalog_sync)
+    return {"status": "ok", "message": "Sincronizzazione completa del catalogo avviata in background."}
+
