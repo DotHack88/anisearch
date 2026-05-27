@@ -99,6 +99,6 @@ HEALTHCHECK \
   --timeout=5s \
   --start-period=60s \
   --retries=3 \
-  CMD curl -f http://localhost/status || exit 1
+  CMD curl -f http://localhost/api/status || exit 1
 
 CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
