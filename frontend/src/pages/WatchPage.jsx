@@ -245,7 +245,7 @@ export default function WatchPage() {
                 }}
                 title="Cancella progresso"
                 aria-label="Cancella progresso"
-                className="absolute top-2 right-2 z-10 bg-red-600/70 hover:bg-red-600/90 text-white rounded-full w-6 h-6 flex items-center justify-center transition-opacity"
+                className="absolute top-2 right-2 z-50 bg-red-600/70 hover:bg-red-600/90 text-white rounded-full w-6 h-6 flex items-center justify-center transition-opacity"
             >
                 X
             </button>

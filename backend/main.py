@@ -288,7 +288,7 @@ async def anime_detail(anime_id: str):
 
 
 @app.get("/episode/{episode_id}/video")
-@limiter.limit("10/minute") if limiter else lambda f: f
+@limiter.limit("60/minute") if limiter else lambda f: f
 async def episode_video(request: Request, episode_id: str):
     """Get the direct video stream URL for an episode."""
     try:

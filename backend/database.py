@@ -296,17 +296,10 @@ class AnimeDatabase:
             rows = result.all()
             watch_progresses = []
             for row in rows:
-                if hasattr(row, '_asdict'):
-                    watch_progresses.append(row._asdict())
-                elif isinstance(row, tuple) and len(row) >= 1:
-                    wp = row[0].dict() if hasattr(row[0], 'dict') else {}
-                    if len(row) > 1:
-                        wp["anime_title"] = row[1]
-                    if len(row) > 2:
-                        wp["anime_image"] = row[2]
-                    if len(row) > 3:
-                        wp["episode_number"] = row[3]
-                    watch_progresses.append(wp)
-                else:
-                    watch_progresses.append(dict(row) if hasattr(row, '__iter__') else {})
+                wp_obj = row[0]
+                wp_dict = wp_obj.dict() if hasattr(wp_obj, 'dict') else wp_obj.model_dump() if hasattr(wp_obj, 'model_dump') else {}
+                wp_dict["anime_title"] = row[1]
+                wp_dict["anime_image"] = row[2]
+                wp_dict["episode_number"] = row[3]
+                watch_progresses.append(wp_dict)
             return watch_progresses
