@@ -23,6 +23,7 @@ jobs:
       - name: Installa dipendenze
         run: |
           pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio httpx
 
       - name: Lint con Ruff
         run: |
