@@ -92,9 +92,9 @@ class AnimeDatabase:
     async def clear(self) -> None:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            await session.exec("DELETE FROM watch_progress")
-            await session.exec("DELETE FROM episode")
-            await session.exec("DELETE FROM anime")
+            await session.exec(delete(WatchProgress))
+            await session.exec(delete(Episode))
+            await session.exec(delete(Anime))
             await session.commit()
         logger.info("Database cleared — all tables emptied.")
 
@@ -144,14 +144,14 @@ class AnimeDatabase:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Anime.year).where(Anime.year.isnot(None), Anime.year != ""))
-            years = {y for (y,) in result.all()}
+            years = {y for y in result.all() if y}
             return sorted(years, reverse=True)
 
     async def get_all_statuses(self) -> List[str]:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Anime.status).where(Anime.status.isnot(None), Anime.status != ""))
-            statuses = {s for (s,) in result.all()}
+            statuses = {s for s in result.all() if s}
             return sorted(statuses)
 
     async def search_exact_or_fuzzy_fallback(self, query: str, limit: int = 20) -> List[dict]:
@@ -191,7 +191,8 @@ class AnimeDatabase:
             elif sort_by == "rating":
                 stmt = stmt.order_by(Anime.rating.cast(float).desc())
             # Total count
-            total_res = await session.exec(select([func.count()]).select_from(stmt.subquery()))
+            count_stmt = select(func.count()).select_from(stmt.subquery())
+            total_res = await session.exec(count_stmt)
             total = total_res.one()
             # Pagination
             stmt = stmt.offset(page * per_page).limit(per_page)
@@ -220,7 +221,7 @@ class AnimeDatabase:
                     season=ep.get("season"),
                     episode=ep.get("episode") or ep.get("number"),
                 )
-                session.add(obj)
+                await session.merge(obj)
             await session.commit()
 
     async def get_recent_episodes(self, limit: int = 20) -> List[dict]:
@@ -234,7 +235,20 @@ class AnimeDatabase:
             )
             result = await session.exec(stmt)
             rows = result.all()
-            return [dict(r) for r in rows]
+            episodes = []
+            for row in rows:
+                if hasattr(row, '_asdict'):
+                    episodes.append(row._asdict())
+                elif isinstance(row, tuple) and len(row) >= 1:
+                    ep = row[0].dict() if hasattr(row[0], 'dict') else {}
+                    if len(row) > 1:
+                        ep["anime_title"] = row[1]
+                    if len(row) > 2:
+                        ep["anime_image"] = row[2]
+                    episodes.append(ep)
+                else:
+                    episodes.append(dict(row) if hasattr(row, '__iter__') else {})
+            return episodes
 
     # ----- Watch Progress -----
     async def save_watch_progress(self, session_id: str, anime_id: str, episode_id: str) -> None:

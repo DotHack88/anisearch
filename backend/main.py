@@ -77,11 +77,11 @@ db = AnimeDatabase()
 scraper = AnimeWorldScraper()
 scheduler = AsyncIOScheduler()
 
-def scheduled_update():
+async def scheduled_update():
     """Job schedulato: cerca nuovi episodi con gestione errori e retry logging."""
     try:
         logger.info("Avvio job schedulato per ricerca nuovi episodi...")
-        scraper.scrape_latest_updates(db)
+        await asyncio.to_thread(scraper.scrape_latest_updates, db)
         logger.info("Job schedulato completato con successo.")
     except Exception as e:
         logger.error(

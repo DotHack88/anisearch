@@ -6,6 +6,7 @@ Estrae metadati (generi, stato, anno) dalla API tooltip.
 
 import re
 import time
+import asyncio
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -269,13 +270,15 @@ class AnimeWorldScraper:
         """Build the full anime index from A-Z list pages, with tooltip metadata."""
         logger.info(f"Inizio scraping {len(AZ_LETTERS)} sezioni A-Z...")
         total = 0
+        loop = asyncio.get_event_loop()
         for letter in AZ_LETTERS:
             items = self._scrape_az_letter(letter)
             if items:
                 # Enrich with tooltip metadata (genres, status, year, rating)
                 logger.info(f"  {letter}: arricchimento metadati per {len(items)} anime...")
                 self._enrich_with_tooltips(items)
-                cache.add_batch(items, mode=batch_mode)
+                future = asyncio.run_coroutine_threadsafe(cache.add_batch(items, mode=batch_mode), loop)
+                future.result()  # Wait for async to finish
                 total += len(items)
             time.sleep(self.delay)
         logger.info(f"Indicizzazione completata: {total} anime totali")
@@ -471,8 +474,10 @@ class AnimeWorldScraper:
         logger.info(f"Trovati {len(anime_list)} anime aggiornati. Arricchimento metadati in corso...")
         self._enrich_with_tooltips(anime_list, max_workers=5)
         
-        # Save to DB
-        db.add_batch(anime_list)
+        # Save to DB (async methods called from sync context)
+        loop = asyncio.get_event_loop()
+        future = asyncio.run_coroutine_threadsafe(db.add_batch(anime_list), loop)
+        future.result()
         logger.info("Database aggiornato con i nuovi episodi con successo.")
         # Fetch and store episodes for each updated anime
         for anime in anime_list:
@@ -485,6 +490,7 @@ class AnimeWorldScraper:
                     for ep in episodes:
                         ep["anime_id"] = anime["id"]
                     if episodes:
-                        db.add_episodes(episodes)
+                        future = asyncio.run_coroutine_threadsafe(db.add_episodes(episodes), loop)
+                        future.result()
             except Exception as e:
                 logger.warning(f"Failed to fetch episodes for {anime.get('id')}: {e}")
