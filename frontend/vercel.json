@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://anisearch-8jph.onrender.com/api/:path*"
-    }
-  ]
-}

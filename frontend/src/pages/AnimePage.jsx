@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import EpisodeList from '../components/EpisodeList.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
-import { getAnimeDetail, getWatchProgress } from '../utils/api.js'
+import { getAnimeDetail, getWatchProgress } from '../utils/api'
 
 const Sk = ({ className }) => <div className={`skeleton rounded-lg ${className}`} />
 

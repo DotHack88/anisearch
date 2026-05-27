@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { searchAnime } from '../utils/api.js'
+import { searchAnime } from '../utils/api'
 
 const queryCache = new Map()
 

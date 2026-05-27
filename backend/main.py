@@ -81,7 +81,7 @@ async def scheduled_update():
     """Job schedulato: cerca nuovi episodi con gestione errori e retry logging."""
     try:
         logger.info("Avvio job schedulato per ricerca nuovi episodi...")
-        await asyncio.to_thread(scraper.scrape_latest_updates, db)
+        await asyncio.to_thread(scraper.scrape_latest_updates, db, loop=asyncio.get_running_loop())
         logger.info("Job schedulato completato con successo.")
     except Exception as e:
         logger.error(
@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
     if await db.count() == 0:
         logger.info("Database vuoto — Avvio scraping iniziale completo (potrebbe richiedere minuti)...")
         try:
-            await asyncio.to_thread(scraper.build_full_index, db)
+            await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
             logger.info(f"Database pronto: {await db.count()} anime salvati.")
         except Exception as e:
             logger.error(f"Errore popolamento db: {e}")
@@ -222,6 +222,20 @@ async def new_updates(limit: int = Query(20, ge=1, le=100)):
     """Return the most recent episodes added by the scheduler."""
     episodes = await db.get_recent_episodes(limit)
     return {"limit": limit, "episodes": episodes}
+
+@app.get("/latest-episodes")
+async def latest_episodes():
+    """Return the latest episodes directly scraped from the homepage."""
+    cache_key = "latest_episodes"
+    cached = cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+    
+    # Run scraper in thread
+    results = await asyncio.to_thread(scraper.get_latest_episodes)
+    if "error" not in results:
+        cache_set(cache_key, json.dumps(results), ex=300) # Cache for 5 min
+    return results
 
 
 def get_or_create_session(
@@ -399,5 +413,5 @@ async def filters():
 async def refresh(request: Request):
     """Rebuild the entire database from scratch. Requires ADMIN_TOKEN if configured."""
     await db.clear()
-    await asyncio.to_thread(scraper.build_full_index, db)
+    await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
     return {"status": "ok", "cached_anime": await db.count()}

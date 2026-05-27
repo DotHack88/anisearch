@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getCatalog, getFilters } from '../utils/api.js'
+import { getCatalog, getFilters } from '../utils/api'
 import AnimeCard from '../components/AnimeCard.jsx'
 
 export default function CatalogPage() {

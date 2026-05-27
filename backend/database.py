@@ -64,7 +64,7 @@ def _row_to_dict(row: Any) -> dict:
     """Convert SQLModel instance to plain dict, handling JSON genres."""
     if row is None:
         return {}
-    d = row.dict()
+    d = row.model_dump() if hasattr(row, 'model_dump') else row.dict() if hasattr(row, 'dict') else {}
     d["genres"] = _parse_genres(d.get("genres"))
     return d
 
@@ -86,8 +86,8 @@ class AnimeDatabase:
     async def count(self) -> int:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(Anime))
-            return len(result.all())
+            result = await session.exec(select(func.count()).select_from(Anime))
+            return result.one()
 
     async def clear(self) -> None:
         await self._ensure_init()
@@ -240,7 +240,8 @@ class AnimeDatabase:
                 if hasattr(row, '_asdict'):
                     episodes.append(row._asdict())
                 elif isinstance(row, tuple) and len(row) >= 1:
-                    ep = row[0].dict() if hasattr(row[0], 'dict') else {}
+                    obj = row[0]
+                    ep = obj.model_dump() if hasattr(obj, 'model_dump') else obj.dict() if hasattr(obj, 'dict') else {}
                     if len(row) > 1:
                         ep["anime_title"] = row[1]
                     if len(row) > 2:
@@ -257,7 +258,7 @@ class AnimeDatabase:
         async with AsyncSession(engine) as session:
             result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
             wp = result.one_or_none()
-            now_str = datetime.datetime.utcnow().isoformat()
+            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
             if wp:
                 wp.episode_id = episode_id
                 wp.updated_at = now_str
@@ -297,7 +298,7 @@ class AnimeDatabase:
             watch_progresses = []
             for row in rows:
                 wp_obj = row[0]
-                wp_dict = wp_obj.dict() if hasattr(wp_obj, 'dict') else wp_obj.model_dump() if hasattr(wp_obj, 'model_dump') else {}
+                wp_dict = wp_obj.model_dump() if hasattr(wp_obj, 'model_dump') else wp_obj.dict() if hasattr(wp_obj, 'dict') else {}
                 wp_dict["anime_title"] = row[1]
                 wp_dict["anime_image"] = row[2]
                 wp_dict["episode_number"] = row[3]

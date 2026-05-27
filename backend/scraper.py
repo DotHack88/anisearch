@@ -266,11 +266,15 @@ class AnimeWorldScraper:
         return all_results
 
 
-    def build_full_index(self, cache, batch_mode="replace") -> None:
+    def build_full_index(self, cache, batch_mode="replace", loop=None) -> None:
         """Build the full anime index from A-Z list pages, with tooltip metadata."""
         logger.info(f"Inizio scraping {len(AZ_LETTERS)} sezioni A-Z...")
         total = 0
-        loop = asyncio.get_event_loop()
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
         for letter in AZ_LETTERS:
             items = self._scrape_az_letter(letter)
             if items:
@@ -420,7 +424,7 @@ class AnimeWorldScraper:
 
         return result
 
-    def scrape_latest_updates(self, db) -> None:
+    def scrape_latest_updates(self, db, loop=None) -> None:
         """Scrape the latest updates page and add/update them in the DB."""
         logger.info("Avvio scraping nuovi episodi...")
         url = f"{BASE_URL}/updated"
@@ -442,7 +446,7 @@ class AnimeWorldScraper:
                 continue
 
             href = thumb.get("href", "")
-            if not href.startswith("play/"):
+            if not href.startswith("/play/"):
                 continue
 
             aid = href.split(".")[-1] if "." in href else ""
@@ -475,7 +479,11 @@ class AnimeWorldScraper:
         self._enrich_with_tooltips(anime_list, max_workers=5)
         
         # Save to DB (async methods called from sync context)
-        loop = asyncio.get_event_loop()
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
         future = asyncio.run_coroutine_threadsafe(db.add_batch(anime_list), loop)
         future.result()
         logger.info("Database aggiornato con i nuovi episodi con successo.")
@@ -494,3 +502,61 @@ class AnimeWorldScraper:
                         future.result()
             except Exception as e:
                 logger.warning(f"Failed to fetch episodes for {anime.get('id')}: {e}")
+
+    def get_latest_episodes(self) -> dict:
+        """Fetch the 'Ultimi Episodi' from the homepage of AnimeWorld."""
+        url = f"{BASE_URL}/"
+        soup = self._fetch(url)
+        if not soup:
+            return {"error": "Failed to fetch homepage"}
+
+        widget = soup.find("div", class_="widget hotnew")
+        if not widget:
+            return {"error": "Widget non trovato"}
+
+        results = {}
+        contents = widget.find_all("div", class_="content")
+        for content in contents:
+            tab_name = content.get("data-name", "unknown")
+            items_list = []
+            
+            items = content.find_all("div", class_="item")
+            for item in items:
+                thumb = item.find("a", class_="poster")
+                if not thumb:
+                    continue
+                
+                href = thumb.get("href", "")
+                anime_id = self._extract_id(href)
+                img = thumb.find("img")
+                img_url = img.get("src") or img.get("data-src") if img else ""
+                
+                status_div = thumb.find("div", class_="status")
+                ep_text = ""
+                type_badges = []
+                if status_div:
+                    ep_div = status_div.find("div", class_="ep")
+                    if ep_div:
+                        ep_text = ep_div.get_text(strip=True)
+                    
+                    # check for dub/ona/movie
+                    for badge_class in ["dub", "ona", "movie", "special"]:
+                        badge = status_div.find("div", class_=badge_class)
+                        if badge:
+                            type_badges.append(badge.get_text(strip=True))
+
+                name_link = item.find("a", class_="name")
+                title = name_link.get_text(strip=True) if name_link else ""
+                
+                items_list.append({
+                    "id": anime_id,
+                    "title": title,
+                    "url": f"{BASE_URL}{href}",
+                    "image": img_url,
+                    "episode": ep_text,
+                    "badges": type_badges
+                })
+            
+            results[tab_name] = items_list
+            
+        return results

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import SearchBar from '../components/SearchBar.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
+import LatestEpisodes from '../components/LatestEpisodes.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
-import { getStatus, getRecentWatchProgress, deleteWatchProgress } from '../utils/api.js'
+import { getStatus, getRecentWatchProgress, deleteWatchProgress } from '../utils/api'
 
 export default function Home() {
   const { favorites, removeFavorite } = useFavorites()
@@ -132,6 +133,11 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {/* Latest Episodes */}
+      <section className="max-w-6xl mx-auto w-full px-4 pb-12">
+        <LatestEpisodes />
+      </section>
 
       {/* Preferiti */}
       {favorites.length > 0 && (

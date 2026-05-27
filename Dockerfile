@@ -18,7 +18,7 @@ FROM python:3.13-slim
 
 # Install nginx + supervisor
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends nginx supervisor && \
+    apt-get install -y --no-install-recommends nginx supervisor curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
