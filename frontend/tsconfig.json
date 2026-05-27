@@ -9,10 +9,13 @@
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client"]
+    "types": ["vite/client", "jest"]
   },
   "include": ["src"]
 }

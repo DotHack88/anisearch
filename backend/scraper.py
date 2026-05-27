@@ -72,7 +72,7 @@ class AnimeWorldScraper:
                 )
                 resp.raise_for_status()
                 return resp.json()
-            except Exception as e:
+            except Exception:
                 if attempt < retries:
                     time.sleep(self.delay * attempt)
         return None

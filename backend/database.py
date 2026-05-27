@@ -23,7 +23,7 @@ engine: AsyncEngine = create_async_engine(
 
 # ---------- Models ----------
 class Anime(SQLModel, table=True):
-    id: str = Field(default=None, primary_key=True)
+    id: Optional[str] = Field(default=None, primary_key=True)
     title: str = Field(default="")
     url: str = Field(default="")
     image: Optional[str] = Field(default=None)
@@ -71,22 +71,26 @@ def _row_to_dict(row: Any) -> dict:
 # ---------- Database class ----------
 class AnimeDatabase:
     def __init__(self):
-        # Ensure tables exist (run sync within async context)
-        import asyncio
-        asyncio.run(self._init_db())
+        self._initialized = False
 
-    async def _init_db(self) -> None:
+    async def _ensure_init(self) -> None:
+        """Lazy init: create tables on first async call."""
+        if self._initialized:
+            return
         async with engine.begin() as conn:
             await conn.run_sync(SQLModel.metadata.create_all)
+        self._initialized = True
         logger.info("Database tables created / verified.")
 
     # ----- Basic operations -----
     async def count(self) -> int:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Anime))
             return len(result.all())
 
     async def clear(self) -> None:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             await session.exec("DELETE FROM watch_progress")
             await session.exec("DELETE FROM episode")
@@ -96,6 +100,7 @@ class AnimeDatabase:
 
     # ----- Anime -----
     async def add_batch(self, anime_list: List[Dict], mode: str = "replace") -> None:
+        await self._ensure_init()
         if not anime_list:
             return
         async with AsyncSession(engine) as session:
@@ -120,12 +125,14 @@ class AnimeDatabase:
             await session.commit()
 
     async def get_by_id(self, anime_id: str) -> Optional[dict]:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Anime).where(Anime.id == anime_id))
             anime = result.one_or_none()
             return _row_to_dict(anime) if anime else None
 
     async def get_all_genres(self) -> List[str]:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Anime.genres))
             all_genres = set()
@@ -134,18 +141,21 @@ class AnimeDatabase:
             return sorted(all_genres)
 
     async def get_all_years(self) -> List[str]:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(Anime.year).where(Anime.year != None, Anime.year != ""))
+            result = await session.exec(select(Anime.year).where(Anime.year.isnot(None), Anime.year != ""))
             years = {y for (y,) in result.all()}
             return sorted(years, reverse=True)
 
     async def get_all_statuses(self) -> List[str]:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(Anime.status).where(Anime.status != None, Anime.status != ""))
+            result = await session.exec(select(Anime.status).where(Anime.status.isnot(None), Anime.status != ""))
             statuses = {s for (s,) in result.all()}
             return sorted(statuses)
 
     async def search_exact_or_fuzzy_fallback(self, query: str, limit: int = 20) -> List[dict]:
+        await self._ensure_init()
         pattern = f"%{query}%"
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Anime).where(Anime.title.like(pattern)).limit(limit))
@@ -162,6 +172,7 @@ class AnimeDatabase:
         year: str = "",
         search: str = "",
     ) -> dict:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             stmt = select(Anime)
             if search:
@@ -196,6 +207,7 @@ class AnimeDatabase:
 
     # ----- Episodes -----
     async def add_episodes(self, episodes: List[Dict]) -> None:
+        await self._ensure_init()
         if not episodes:
             return
         async with AsyncSession(engine) as session:
@@ -212,6 +224,7 @@ class AnimeDatabase:
             await session.commit()
 
     async def get_recent_episodes(self, limit: int = 20) -> List[dict]:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             stmt = (
                 select(Episode, Anime.title.label("anime_title"), Anime.image.label("anime_image"))
@@ -225,6 +238,7 @@ class AnimeDatabase:
 
     # ----- Watch Progress -----
     async def save_watch_progress(self, session_id: str, anime_id: str, episode_id: str) -> None:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
             wp = result.one_or_none()
@@ -236,6 +250,7 @@ class AnimeDatabase:
             await session.commit()
 
     async def get_watch_progress(self, session_id: str, anime_id: str) -> Optional[dict]:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
             wp = result.one_or_none()
@@ -244,11 +259,13 @@ class AnimeDatabase:
             return None
 
     async def delete_watch_progress(self, session_id: str, anime_id: str) -> None:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             await session.exec(delete(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
             await session.commit()
 
     async def get_recent_watch_progress(self, session_id: str, limit: int = 10) -> List[dict]:
+        await self._ensure_init()
         async with AsyncSession(engine) as session:
             stmt = (
                 select(WatchProgress, Anime.title.label("anime_title"), Anime.image.label("anime_image"), Episode.episode.label("episode_number"))

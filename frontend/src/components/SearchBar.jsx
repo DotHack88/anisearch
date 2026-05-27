@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSearch } from '../hooks/useSearch.js'
+import { useSearch } from '../hooks/useSearch.jsx'
 
 const TypeBadge = ({ type }) => {
   if (!type) return null

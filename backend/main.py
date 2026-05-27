@@ -4,11 +4,24 @@ AniSearch — Backend API (FastAPI)
 
 import os
 import sys
+import uuid
+import json
+import asyncio
+import logging
+import warnings
 from pathlib import Path
 from typing import Any
+from contextlib import asynccontextmanager
 
-# Aggiungi la cartella radice del progetto al percorso di ricerca di Python
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, Cookie, Response
+from fastapi.middleware.cors import CORSMiddleware
+
+# Add project root to Python path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from backend.scraper import AnimeWorldScraper  # noqa: E402
+from backend.database import AnimeDatabase  # noqa: E402
+from apscheduler.schedulers.asyncio import AsyncIOScheduler  # noqa: E402
 
 # Redis for caching frequent searches (optional — works without it)
 try:
@@ -42,16 +55,6 @@ def cache_set(key: str, value: Any, ex: int = 300) -> None:
             redis_client.set(key, value, ex=ex)
         except Exception:
             pass
-
-from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import asyncio
-import logging
-
-from backend.scraper import AnimeWorldScraper
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from backend.database import AnimeDatabase
 
 # Rate limiting
 try:
@@ -101,7 +104,6 @@ async def lifespan(app: FastAPI):
         logger.info(f"Avvio rapido — Database già popolato con {await db.count()} anime.")
         
     if not os.getenv("ADMIN_TOKEN"):
-        import warnings
         warnings.warn(
             "ADMIN_TOKEN non è impostato. "
             "L'endpoint /cache/refresh non funzionerà.",
@@ -194,11 +196,9 @@ if _has_slowapi and limiter:
         cache_key = f"search:{q}:{limit}"
         cached = cache_get(cache_key)
         if cached:
-            import json
             return json.loads(cached)
         results = await db.search_exact_or_fuzzy_fallback(q.strip(), limit=limit)
         response = {"query": q, "count": len(results), "results": results}
-        import json
         cache_set(cache_key, json.dumps(response), ex=300)
         return response
 else:
@@ -209,11 +209,9 @@ else:
         cache_key = f"search:{q}:{limit}"
         cached = cache_get(cache_key)
         if cached:
-            import json
             return json.loads(cached)
         results = await db.search_exact_or_fuzzy_fallback(q.strip(), limit=limit)
         response = {"query": q, "count": len(results), "results": results}
-        import json
         cache_set(cache_key, json.dumps(response), ex=300)
         return response
 
@@ -225,8 +223,6 @@ async def new_updates(limit: int = Query(20, ge=1, le=100)):
     episodes = await db.get_recent_episodes(limit)
     return {"limit": limit, "episodes": episodes}
 
-from fastapi import Cookie, Response
-import uuid
 
 def get_or_create_session(
     response: Response,

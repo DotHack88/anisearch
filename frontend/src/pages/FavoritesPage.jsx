@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import AnimeCard from '../components/AnimeCard.jsx'
-import { useFavorites } from '../hooks/useFavorites.js'
+import { useFavorites } from '../hooks/useFavorites.jsx'
 
 export default function FavoritesPage() {
   const { favorites, removeFavorite } = useFavorites()

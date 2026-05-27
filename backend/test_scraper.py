@@ -26,7 +26,7 @@ resp = requests.get(URL, headers=HEADERS, timeout=15)
 print(f"Status code: {resp.status_code}")
 print(f"Content-Type: {resp.headers.get('content-type', '')}")
 print(f"HTML length: {len(resp.text)} caratteri")
-print(f"\n--- Primi 2000 caratteri dell'HTML ---\n")
+print("\n--- Primi 2000 caratteri dell'HTML ---\n")
 print(resp.text[:2000])
 print("\n--- Fine preview ---\n")
 
@@ -40,7 +40,7 @@ if play_links:
     for a in play_links[:5]:
         print(f"  href={a.get('href')}  testo={a.get_text(strip=True)[:40]}")
 
-print(f"\nTutte le classi CSS uniche (prime 40):")
+print("\nTutte le classi CSS uniche (prime 40):")
 classes = set()
 for tag in soup.find_all(class_=True):
     for c in tag.get("class", []):

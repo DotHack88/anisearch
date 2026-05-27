@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import SearchBar from '../components/SearchBar.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
-import { useFavorites } from '../hooks/useFavorites.js'
+import { useFavorites } from '../hooks/useFavorites.jsx'
 import { getStatus, getRecentWatchProgress, deleteWatchProgress } from '../utils/api.js'
 
 export default function Home() {
