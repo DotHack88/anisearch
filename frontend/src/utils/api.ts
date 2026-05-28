@@ -1,10 +1,9 @@
 import axios from 'axios'
 import { getSessionId } from './session'
 
-// VITE_API_URL deve essere impostata come variabile d'ambiente su Vercel
-// Valore corretto: https://anisearch-8jph.onrender.com/api  (con /api!)
-// Fallback hardcoded con il path /api incluso
-const API_BASE = import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrender.com/api'
+// In sviluppo (npm run dev): usa il proxy Vite locale → http://localhost:8000
+// In produzione (Vercel): usa VITE_API_URL o il fallback su Render
+const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrender.com/api')
 
 const api = axios.create({
   baseURL: API_BASE,
