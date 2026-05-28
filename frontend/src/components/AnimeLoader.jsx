@@ -7,6 +7,18 @@ const QUOTES = [
   '"Anche il cielo più buio ha le sue stelle."',
   '"Non arrenderti mai. Mai."',
   '"La forza non è nell\'invincibilità."',
+  '"A volte, cadere è il primo passo per imparare a volare."',
+  '"L\'amicizia è il vero tesoro che cerchi."',
+  '"Anche nel silenzio, la vera forza parla da sé."',
+  '"Non judge un libro dalla sua copertina, ma dal cuore del suo narratore."',
+  '"Ogni avventura inizia con un singolo passo nel vuoto."',
+  '"I sogni diventano realtà solo quando smetti di dormire."',
+  '"La vera maturità non viene con l\'età, ma con le esperienze."',
+  '"Non preoccuparti di fallire, preoccupati di non riprovare."',
+  '"Ogni fine è un nuovo inizio travestito."',
+  '"Non giudicare una persona dalle sue parole, ma dalle sue azioni."',
+  '"Anche un piccolo seme può diventare un grande albero."',
+  '"Non cercare la felicità, creala tu stesso."',
 ]
 
 function MatrixChar({ char, style }) {

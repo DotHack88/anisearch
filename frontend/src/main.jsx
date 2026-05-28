@@ -15,8 +15,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('Service Worker registrato con successo:', reg.scope))
-      .catch(err => console.error('Errore registrazione Service Worker:', err))
+      .then((reg) => {
+        console.log('Service Worker registrato:', reg.scope)
+
+        // Quando un nuovo SW prende il controllo, ricarica la pagina automaticamente
+        // così l'utente ottiene sempre il bundle aggiornato senza Ctrl+Shift+R.
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload()
+        })
+      })
+      .catch((err) => console.error('Errore Service Worker:', err))
   })
 }
+
 
