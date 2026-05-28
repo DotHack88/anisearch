@@ -277,9 +277,14 @@ async def latest_episodes():
 
 
 def get_or_create_session(
+    request: Request,
     response: Response,
     anisearch_session: str | None = Cookie(default=None)
 ) -> str:
+    # Priorità: header X-Session-Id (usato dal frontend cross-site) > cookie
+    header_session = request.headers.get("X-Session-Id")
+    if header_session:
+        return header_session
     if not anisearch_session:
         anisearch_session = str(uuid.uuid4())
         response.set_cookie(

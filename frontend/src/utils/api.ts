@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getSessionId } from './session'
 
 // VITE_API_URL deve essere impostata come variabile d'ambiente su Vercel
 // Valore corretto: https://anisearch-8jph.onrender.com/api  (con /api!)
@@ -8,7 +9,13 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrende
 const api = axios.create({
   baseURL: API_BASE,
   timeout: 15000,
-  withCredentials: true,
+  withCredentials: false,
+})
+
+// Aggiungi automaticamente X-Session-Id a ogni richiesta
+api.interceptors.request.use((config) => {
+  config.headers['X-Session-Id'] = getSessionId()
+  return config
 })
 
 export interface Anime {

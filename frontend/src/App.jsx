@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import AnimeLoader from './components/AnimeLoader.jsx'
 import Home from './pages/Home.jsx'
 import AnimePage from './pages/AnimePage.jsx'
 import CatalogPage from './pages/CatalogPage.jsx'
@@ -9,9 +11,20 @@ import WatchPage from './pages/WatchPage.jsx'
 import DownloadsPage from './pages/DownloadsPage.jsx'
 import NewEpisodesPage from './pages/NewEpisodesPage.jsx'
 
+// Mostra il loader una sola volta per sessione browser
+const hasSeenLoader = sessionStorage.getItem('anisearch_loader_seen')
+
 export default function App() {
+  const [loading, setLoading] = useState(!hasSeenLoader)
+
+  const handleLoaderComplete = () => {
+    sessionStorage.setItem('anisearch_loader_seen', '1')
+    setLoading(false)
+  }
+
   return (
     <div className="min-h-screen bg-bg text-text">
+      {loading && <AnimeLoader onComplete={handleLoaderComplete} />}
       <Navbar />
       <main>
         <ErrorBoundary>
