@@ -6,16 +6,67 @@ import LatestEpisodes from '../components/LatestEpisodes.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
 import { getStatus, getRecentWatchProgress, deleteWatchProgress } from '../utils/api'
 
+function AnimatedCounter({ value }) {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    let start = 0
+    const end = parseInt(value)
+    if (isNaN(end)) return
+
+    // If we already have a count, start counting up from the previous value
+    if (count > 0) {
+      start = count
+    } else {
+      // Start counting from a close number on first load to look fast and responsive
+      start = Math.max(0, end - 150)
+    }
+
+    if (start === end) return
+
+    const duration = 1200 // ms
+    const startTime = performance.now()
+
+    const animate = (now) => {
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      
+      // Ease out cubic
+      const easeOut = 1 - Math.pow(1 - progress, 3)
+      
+      const current = Math.floor(easeOut * (end - start) + start)
+      setCount(current)
+
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      }
+    }
+
+    requestAnimationFrame(animate)
+  }, [value])
+
+  return <span>{count.toLocaleString()}</span>
+}
+
 export default function Home() {
   const { favorites, removeFavorite } = useFavorites()
   const [status, setStatus] = useState(null)
   const [recentWatch, setRecentWatch] = useState([])
 
   useEffect(() => {
-    getStatus().then(setStatus).catch(() => setStatus({ status: 'offline' }))
+    const fetchStatus = () => {
+      getStatus().then(setStatus).catch(() => setStatus({ status: 'offline' }))
+    }
+    
+    fetchStatus()
+    // Poll the status endpoint every 10 seconds to keep the count updated dynamically
+    const statusInterval = setInterval(fetchStatus, 10000)
+
     getRecentWatchProgress()
       .then(setRecentWatch)
       .catch(err => console.error('Error fetching watch progress:', err))
+
+    return () => clearInterval(statusInterval)
   }, [])
 
   const handleClearProgress = (animeId, episodeId) => {
@@ -35,7 +86,7 @@ export default function Home() {
           <h1 className="font-display tracking-widest leading-none" style={{ fontSize: 'clamp(2.5rem, 12vw, 8rem)' }}>
             <span className="text-accent">ANI</span><span className="text-text">SEARCH</span>
           </h1>
-          <p className="mt-3 text-text-dim font-body text-sm">Cerca anime, Guada anime in Streaming</p>
+          <p className="mt-3 text-text-dim font-body text-sm">Cerca. Trova. Guarda. Tutto in un click.</p>
         </div>
 
         <div className="w-full max-w-xl relative">
@@ -45,7 +96,7 @@ export default function Home() {
         {/* Stato backend */}
         <p className="mt-4 text-xs font-body text-muted h-4">
           {status?.status === 'online' && (
-            <><span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5 mb-px" />{status.cached_anime.toLocaleString()} anime indicizzati</>
+            <><span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5 mb-px" /><AnimatedCounter value={status.cached_anime} /> anime indicizzati</>
           )}
           {status?.status === 'offline' && (
             <><span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 mr-1.5 mb-px" />Backend offline — avvia il server Python</>

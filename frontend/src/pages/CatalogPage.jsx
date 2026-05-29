@@ -18,7 +18,7 @@ export default function CatalogPage() {
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedYear, setSelectedYear] = useState('')
   const [sortBy, setSortBy] = useState('title')
-  
+
   // Pagination
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
@@ -39,7 +39,7 @@ export default function CatalogPage() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    
+
     getCatalog({
       page,
       per_page: 24,
@@ -96,11 +96,11 @@ export default function CatalogPage() {
             className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder-muted focus:outline-none focus:border-accent transition-colors font-body"
           />
           {search && (
-            <button 
+            <button
               onClick={() => handleFilterChange(setSearch, '')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text p-1">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <path d="M18 6 6 18M6 6l12 12"/>
+                <path d="M18 6 6 18M6 6l12 12" />
               </svg>
             </button>
           )}
@@ -174,8 +174,8 @@ export default function CatalogPage() {
             onClick={handleClearFilters}
             className="w-full bg-border hover:bg-border/80 border border-white/5 text-text font-medium text-xs py-2.5 rounded-xl transition-all font-body flex items-center justify-center gap-2">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
             </svg>
             Resetta Filtri
           </button>
@@ -201,7 +201,7 @@ export default function CatalogPage() {
       ) : items.length === 0 ? (
         <div className="text-center py-24 bg-surface/20 rounded-2xl border border-border">
           <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted/50 mx-auto mb-4">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
           <p className="text-text-dim font-body mb-2">Nessun anime corrisponde ai filtri impostati</p>
           <p className="text-xs text-muted font-body">Prova a cambiare o rimuovere qualche filtro</p>
@@ -221,9 +221,9 @@ export default function CatalogPage() {
                 disabled={page === 0}
                 onClick={() => setPage(p => p - 1)}
                 className="p-2.5 rounded-xl border border-border bg-surface text-text-dim hover:text-text hover:border-accent disabled:opacity-30 disabled:hover:border-border disabled:hover:text-text-dim transition-all">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
               </button>
-              
+
               <span className="text-sm font-semibold text-text-dim">
                 Pagina <span className="text-text">{page + 1}</span> di <span className="text-text">{totalPages}</span>
               </span>
@@ -232,7 +232,7 @@ export default function CatalogPage() {
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage(p => p + 1)}
                 className="p-2.5 rounded-xl border border-border bg-surface text-text-dim hover:text-text hover:border-accent disabled:opacity-30 disabled:hover:border-border disabled:hover:text-text-dim transition-all">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
               </button>
             </div>
           )}
