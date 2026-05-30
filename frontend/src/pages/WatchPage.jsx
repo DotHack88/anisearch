@@ -348,16 +348,19 @@ const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow
 
               {/* Clear progress button */}
               <button
-                  onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleClearProgress();
-                  }}
-                  title="Cancella progresso"
-                  aria-label="Cancella progresso"
-                  className="absolute top-2 right-2 z-50 bg-red-600/70 hover:bg-red-600/90 text-white rounded-full w-6 h-6 flex items-center justify-center transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleClearProgress();
+                }}
+                title="Cancella progresso"
+                aria-label="Cancella progresso"
+                className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/20 text-[#fc384b] hover:bg-red-600 hover:border-red-500 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm"
               >
-                  X
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="1" y1="1" x2="9" y2="9" />
+                  <line x1="9" y1="1" x2="1" y2="9" />
+                </svg>
               </button>
               {loading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center bg-surface/90">

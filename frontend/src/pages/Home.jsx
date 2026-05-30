@@ -96,7 +96,14 @@ export default function Home() {
         {/* Stato backend */}
         <p className="mt-4 text-xs font-body text-muted h-4">
           {status?.status === 'online' && (
-            <><span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5 mb-px" /><AnimatedCounter value={status.cached_anime} /> anime indicizzati</>
+            <>
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5 mb-px" />
+              <AnimatedCounter value={status.cached_anime} /> anime
+              {status.total_episodes > 0 && (
+                <> · <AnimatedCounter value={status.total_episodes} /> episodi</>
+              )}
+              {' '}indicizzati
+            </>
           )}
           {status?.status === 'offline' && (
             <><span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 mr-1.5 mb-px" />Backend offline — avvia il server Python</>
@@ -148,9 +155,12 @@ export default function Home() {
                     handleClearProgress(item.anime_id, item.episode_id);
                   }}
                   title="Cancella progresso"
-                  className="absolute top-2 right-2 z-10 bg-red-600/70 hover:bg-red-600/90 text-white rounded-full w-6 h-6 flex items-center justify-center transition-opacity"
+                  className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/20 text-white hover:bg-red-600 hover:border-red-500 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm opacity-0 group-hover:opacity-100"
                 >
-                  X
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="1" y1="1" x2="9" y2="9" />
+                    <line x1="9" y1="1" x2="1" y2="9" />
+                  </svg>
                 </button>
                 {/* Poster Container */}
                 <div className="aspect-[16/9] w-full overflow-hidden bg-surface relative">
@@ -187,7 +197,7 @@ export default function Home() {
 
       {/* Latest Episodes */}
       <section className="max-w-6xl mx-auto w-full px-4 pb-12">
-        <LatestEpisodes />
+        <LatestEpisodes limit={6} />
       </section>
 
       {/* Preferiti */}

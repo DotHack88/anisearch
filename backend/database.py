@@ -109,6 +109,12 @@ class AnimeDatabase:
             result = await session.exec(select(func.count()).select_from(Anime))
             return result.one()
 
+    async def count_episodes(self) -> int:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(func.count()).select_from(Episode))
+            return result.one()
+
     async def clear(self) -> None:
         await self._ensure_init()
         async with AsyncSession(engine) as session:

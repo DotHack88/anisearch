@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
 
-export default function LatestEpisodes() {
+export default function LatestEpisodes({ limit }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -46,7 +46,8 @@ export default function LatestEpisodes() {
     { id: 'trending', label: 'Tendenze' }
   ];
 
-  const currentItems = data[activeTab] || [];
+  const allItems = data[activeTab] || [];
+  const currentItems = limit ? allItems.slice(0, limit) : allItems;
   if (currentItems.length === 0) return null;
 
   return (

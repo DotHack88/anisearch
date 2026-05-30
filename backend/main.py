@@ -218,10 +218,13 @@ def root():
 
 @app.get("/status")
 async def status():
+    anime_count = await db.count()
+    episode_count = await db.count_episodes()
     return {
         "status": "online",
-        "cached_anime": await db.count(),
-        "cache_ready": await db.count() > 0,
+        "cached_anime": anime_count,
+        "total_episodes": episode_count,
+        "cache_ready": anime_count > 0,
     }
 
 
