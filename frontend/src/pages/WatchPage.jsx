@@ -12,7 +12,7 @@ export default function WatchPage() {
   const [episodes, setEpisodes] = useState(location.state?.episodes || [])
   const [animeTitle, setAnimeTitle] = useState(location.state?.animeTitle || '')
   const [animeImage, setAnimeImage] = useState(location.state?.animeImage || '')
-const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow-y-auto flex-1 pr-1' : 'grid grid-cols-4 gap-2 overflow-y-auto flex-1 pr-1';
+  const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow-y-auto flex-1 pr-1' : 'grid grid-cols-4 gap-2 overflow-y-auto flex-1 pr-1';
 
   // Stream data
   const [videoUrl, setVideoUrl] = useState('')
@@ -191,7 +191,7 @@ const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow
 
     const ctx = canvas.getContext('2d')
     let animationFrameId
-    
+
     const draw = () => {
       if (video.paused || video.ended) {
         animationFrameId = requestAnimationFrame(draw)
@@ -211,7 +211,7 @@ const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow
         const r1 = Math.floor(192 + Math.sin(time) * 63)
         const g1 = Math.floor(56 + Math.cos(time * 0.7) * 20)
         const b1 = Math.floor(180 + Math.sin(time * 1.3) * 75)
-        
+
         const r2 = Math.floor(252 + Math.cos(time) * 3) // red-accent
         const g2 = Math.floor(56 + Math.sin(time * 0.5) * 10)
         const b2 = Math.floor(75 + Math.cos(time * 0.9) * 20)
@@ -219,7 +219,7 @@ const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow
         grad.addColorStop(0, `rgba(${r1}, ${g1}, ${b1}, 0.7)`)
         grad.addColorStop(0.5, `rgba(${r2}, ${g2}, ${b2}, 0.4)`)
         grad.addColorStop(1, 'rgba(3, 3, 5, 0)')
-        
+
         ctx.fillStyle = grad
         ctx.fillRect(0, 0, canvas.width, canvas.height)
       }
@@ -319,10 +319,10 @@ const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Video Player */}
         <div className={`transition-all duration-500 ${cinemaMode ? 'lg:col-span-4' : 'lg:col-span-3'} space-y-4`}>
-          
+
           {/* Wrapper container for z-indexing over the Lights Off backdrop and mounting the Ambilight canvas */}
           <div className={`relative transition-all duration-500 rounded-2xl ${lightsOff ? 'z-50 shadow-2xl shadow-accent/10' : 'z-10'}`}>
-            
+
             {/* Ambilight Canvas */}
             {ambilightActive && !loading && !error && (
               <canvas
@@ -357,7 +357,7 @@ const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow
                 aria-label="Cancella progresso"
                 className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/20 text-[#fc384b] hover:bg-red-600 hover:border-red-500 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm"
               >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#ffffffff" strokeWidth="2" strokeLinecap="round">
                   <line x1="1" y1="1" x2="9" y2="9" />
                   <line x1="9" y1="1" x2="1" y2="9" />
                 </svg>
