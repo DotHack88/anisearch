@@ -1,30 +1,40 @@
 import { useState, useEffect, useCallback } from 'react'
-
-const KEY = 'anisearch_favorites'
+import { getFavorites, addFavorite, removeFavoriteApi } from '../utils/api'
 
 export function useFavorites() {
-  const [favorites, setFavorites] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(KEY)) || [] } catch { return [] }
-  })
+  const [favorites, setFavorites] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(favorites)) } catch {}
-  }, [favorites])
-
-  const toggleFavorite = useCallback((anime) => {
-    setFavorites(prev =>
-      prev.find(f => f.id === anime.id)
-        ? prev.filter(f => f.id !== anime.id)
-        : [anime, ...prev]
-    )
+    getFavorites()
+      .then(data => setFavorites(Array.isArray(data) ? data : []))
+      .catch(() => setFavorites([]))
+      .finally(() => setLoading(false))
   }, [])
 
-  const removeFavorite = useCallback((id) => {
+  const toggleFavorite = useCallback(async (anime) => {
+    const already = favorites.some(f => f.id === anime.id)
+    if (already) {
+      setFavorites(prev => prev.filter(f => f.id !== anime.id))
+      removeFavoriteApi(anime.id).catch(() => {
+        // rollback on error
+        setFavorites(prev => [anime, ...prev])
+      })
+    } else {
+      setFavorites(prev => [anime, ...prev])
+      addFavorite(anime.id).catch(() => {
+        setFavorites(prev => prev.filter(f => f.id !== anime.id))
+      })
+    }
+  }, [favorites])
+
+  const removeFavorite = useCallback(async (id) => {
     setFavorites(prev => prev.filter(f => f.id !== id))
+    removeFavoriteApi(id).catch(() => {})
   }, [])
 
   const isFavorite = useCallback((id) =>
     favorites.some(f => f.id === id), [favorites])
 
-  return { favorites, toggleFavorite, removeFavorite, isFavorite }
+  return { favorites, loading, toggleFavorite, removeFavorite, isFavorite }
 }

@@ -68,6 +68,11 @@ class WatchProgress(SQLModel, table=True):
     episode_id: str = Field(foreign_key="episode.id")
     updated_at: Optional[str] = None
 
+class Favorite(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    anime_id: str = Field(primary_key=True, foreign_key="anime.id")
+    added_at: Optional[str] = None
+
 # ---------- Helper ----------
 def _parse_genres(genres_str: Optional[str]) -> List[str]:
     if not genres_str:
@@ -392,3 +397,35 @@ class AnimeDatabase:
                 wp_dict["episode_number"] = row[3]
                 watch_progresses.append(wp_dict)
             return watch_progresses
+
+    # ----- Favorites -----
+    async def save_favorite(self, session_id: str, anime_id: str) -> None:
+        import datetime
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Favorite).where(Favorite.anime_id == anime_id, Favorite.session_id == session_id))
+            fav = result.one_or_none()
+            if not fav:
+                now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                fav = Favorite(session_id=session_id, anime_id=anime_id, added_at=now_str)
+                session.add(fav)
+                await session.commit()
+
+    async def remove_favorite(self, session_id: str, anime_id: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            await session.exec(delete(Favorite).where(Favorite.anime_id == anime_id, Favorite.session_id == session_id))
+            await session.commit()
+
+    async def get_favorites(self, session_id: str) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(Anime)
+                .join(Favorite, Favorite.anime_id == Anime.id)
+                .where(Favorite.session_id == session_id)
+                .order_by(Favorite.added_at.desc())
+            )
+            result = await session.exec(stmt)
+            rows = result.all()
+            return [_row_to_dict(r) for r in rows]

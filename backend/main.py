@@ -325,6 +325,20 @@ async def save_watch(anime_id: str, episode_id: str = Query(...), session_id: st
     await db.save_watch_progress(session_id, anime_id, episode_id)
     return {"status": "saved", "anime_id": anime_id, "episode_id": episode_id}
 
+@app.get("/favorites")
+async def get_favorites(session_id: str = Depends(get_or_create_session)):
+    return await db.get_favorites(session_id)
+
+@app.post("/favorites/{anime_id}")
+async def add_favorite(anime_id: str, session_id: str = Depends(get_or_create_session)):
+    await db.save_favorite(session_id, anime_id)
+    return {"status": "saved"}
+
+@app.delete("/favorites/{anime_id}")
+async def remove_favorite(anime_id: str, session_id: str = Depends(get_or_create_session)):
+    await db.remove_favorite(session_id, anime_id)
+    return {"status": "deleted"}
+
 
 # Extend anime_detail to store episodes after fetching
 @app.get("/anime/{anime_id}")

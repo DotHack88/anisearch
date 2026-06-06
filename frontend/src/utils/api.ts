@@ -57,4 +57,8 @@ export const deleteWatchProgress = async (animeId: string, episodeId: string) =>
 export const getWatchProgress = async (animeId: string) => (await api.get(`/watch/${animeId}`)).data
 export const getRecentWatchProgress = async () => (await api.get('/watch')).data
 
+export const getFavorites = async () => (await api.get<Anime[]>('/favorites')).data
+export const addFavorite = async (animeId: string) => (await api.post(`/favorites/${animeId}`)).data
+export const removeFavoriteApi = async (animeId: string) => (await api.delete(`/favorites/${animeId}`)).data
+
 export default api
