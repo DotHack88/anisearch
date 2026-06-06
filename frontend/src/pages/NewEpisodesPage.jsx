@@ -80,6 +80,7 @@ export default function NewEpisodesPage() {
             <Link 
               key={index} 
               to={`/anime/${item.id}`} 
+              state={item}
               className="group relative rounded-xl overflow-hidden aspect-[3/4] bg-surface block border border-border/40 hover:border-accent/40 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-1"
             >
               <img 

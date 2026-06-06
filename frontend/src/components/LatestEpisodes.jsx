@@ -84,7 +84,7 @@ export default function LatestEpisodes({ limit }) {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {currentItems.map((item, index) => (
-          <Link key={index} to={`/anime/${item.id}`} className="group relative rounded-xl overflow-hidden aspect-[3/4] bg-surface block border border-border/40 hover:border-accent/40 transition-colors">
+          <Link key={index} to={`/anime/${item.id}`} state={item} className="group relative rounded-xl overflow-hidden aspect-[3/4] bg-surface block border border-border/40 hover:border-accent/40 transition-colors">
             <img 
               src={item.image} 
               alt={item.title} 

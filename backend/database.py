@@ -224,7 +224,7 @@ class AnimeDatabase:
         await self._ensure_init()
         pattern = f"%{query}%"
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(Anime).where(Anime.title.like(pattern)).limit(limit))
+            result = await session.exec(select(Anime).where(func.lower(Anime.title).like(func.lower(pattern))).limit(limit))
             rows = result.all()
             return [_row_to_dict(r) for r in rows]
 
@@ -242,7 +242,7 @@ class AnimeDatabase:
         async with AsyncSession(engine) as session:
             stmt = select(Anime)
             if search:
-                stmt = stmt.where(Anime.title.like(f"%{search}%"))
+                stmt = stmt.where(func.lower(Anime.title).like(func.lower(f"%{search}%")))
             if genre:
                 stmt = stmt.where(Anime.genres.like(f'%"{genre}"%'))
             if status:

@@ -331,6 +331,39 @@ async def save_watch(anime_id: str, episode_id: str = Query(...), session_id: st
 async def anime_detail(anime_id: str):
     base = await db.get_by_id(anime_id)
     if not base:
+        # Check latest-episodes cache or fetch directly as fallback
+        cache_key = "latest_episodes"
+        cached = cache_get(cache_key)
+        if cached:
+            latest_data = json.loads(cached)
+        else:
+            latest_data = await asyncio.to_thread(scraper.get_latest_episodes)
+            if "error" not in latest_data:
+                cache_set(cache_key, json.dumps(latest_data), ex=300)
+
+        if isinstance(latest_data, dict) and "error" not in latest_data:
+            for items in latest_data.values():
+                if isinstance(items, list):
+                    for item in items:
+                        if item.get("id") == anime_id:
+                            base = {
+                                "id": anime_id,
+                                "url": item.get("url", ""),
+                                "title": item.get("title", ""),
+                                "image": item.get("image", ""),
+                                "type": "",
+                                "genres": [],
+                                "status": "",
+                                "year": "",
+                                "rating": "",
+                            }
+                            # Save this new base to DB to speed up future requests
+                            await db.add_batch([base])
+                            break
+                if base:
+                    break
+
+    if not base:
         raise HTTPException(404, "Anime non trovato")
     try:
         detail = await asyncio.to_thread(scraper.get_anime_detail, base["url"])
