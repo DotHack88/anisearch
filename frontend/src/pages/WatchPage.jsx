@@ -338,7 +338,7 @@ export default function WatchPage() {
               />
             )}
 
-            <div className="video-player-container border border-border shadow-2xl relative bg-black overflow-hidden">
+            <div className={`video-player-container border border-border shadow-2xl relative bg-black overflow-hidden w-full ${cinemaMode ? 'h-[75vh]' : 'aspect-video'}`}>
               {isOfflinePlay && (
                 <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-green-500/20 text-green-400 text-[10px] font-bold font-body">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -391,7 +391,7 @@ export default function WatchPage() {
                   autoPlay
                   playsInline
                   crossOrigin="anonymous"
-                  className="w-full h-full"
+                  className="w-full h-full object-contain"
                 />
               )}
             </div>
