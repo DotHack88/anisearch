@@ -19,10 +19,11 @@
 | 🔎 **Ricerca Istantanea** | Autocomplete in tempo reale con navigazione da tastiera (↑↓ Enter Esc) |
 | 📚 **Catalogo Completo** | 6.500+ anime indicizzati con paginazione, filtri per genere/anno/stato e ordinamento |
 | ▶️ **Player Video Nativo** | Riproduzione diretta degli episodi con navigazione precedente/successivo |
-| 🔄 **Riprendi la Visione** | Salvataggio automatico del progresso — riprendi da dove avevi interrotto |
-| ❤️ **Preferiti** | Salva i tuoi anime preferiti in locale (localStorage) |
+| 🔄 **Sincronizzazione Multi-Dispositivo** | Esporta e importa un codice segreto univoco per condividere il tuo profilo su smartphone, tablet e PC. |
+| 📺 **Riprendi la Visione** | Salvataggio automatico sul cloud del progresso — riprendi da dove avevi interrotto su qualsiasi dispositivo. |
+| ❤️ **Preferiti Cloud** | Salva i tuoi anime preferiti sul tuo profilo remoto e trovali ovunque. |
 | 🕐 **Aggiornamento Automatico** | Scheduler che controlla nuovi episodi ogni 60 minuti |
-| 🐳 **Docker Ready** | Dockerfile incluso per il deploy containerizzato |
+| ☁️ **Cloud Ready** | Pronto per il deploy separato (Vercel per il Frontend, Render per il Backend) |
 
 ---
 
@@ -33,10 +34,10 @@ anisearch/
 ├── backend/                  # API Python + Scraper
 │   ├── main.py               # FastAPI — server API REST
 │   ├── scraper.py             # Scraper  (A-Z + tooltip metadata)
-│   ├── database.py            # SQLite — anime, episodi, watch progress
+│   ├── database.py            # SQLite/PostgreSQL — anime, episodi, watch progress, favoriti
 │   ├── cache.py               # Redis caching helper (opzionale)
 │   ├── requirements.txt       # Dipendenze Python
-│   └── anisearch.db           # Database SQLite (generato)
+│   └── anisearch.db           # Database SQLite (in sviluppo locale)
 ├── frontend/                 # UI React
 │   ├── src/
 │   │   ├── App.jsx            # Router principale
@@ -47,100 +48,91 @@ anisearch/
 │   │   │   ├── WatchPage.jsx  # Player video con navigazione episodi
 │   │   │   └── FavoritesPage.jsx
 │   │   ├── components/
+│   │   │   ├── SyncModal.jsx  # Modale per sincronizzazione codice profilo
 │   │   │   ├── SearchBar.jsx  # Barra di ricerca con autocomplete
 │   │   │   ├── AnimeCard.jsx  # Card anime riutilizzabile
 │   │   │   ├── EpisodeList.jsx# Griglia episodi
 │   │   │   └── Navbar.jsx     # Navigazione globale
 │   │   ├── hooks/
-│   │   │   ├── useFavorites.js# Hook per gestione preferiti (localStorage)
-│   │   │   └── useSearch.js   # Hook per ricerca debounced
+│   │   │   ├── useFavorites.jsx # Hook per gestione preferiti via API (cloud)
+│   │   │   └── useSearch.jsx    # Hook per ricerca debounced
 │   │   └── utils/
-│   │       └── api.js         # Client API (Axios)
-│   ├── vite.config.js         # Configurazione Vite con proxy API
-│   └── package.json
+│   │       ├── api.ts         # Client API (Axios) con proxy detection
+│   │       └── session.ts     # Gestione dell'X-Session-Id in localStorage
+│   ├── vite.config.js         # Configurazione Vite con proxy API verso il Cloud
+│   └── vercel.json            # Configurazione proxy per il deploy frontend
 ├── build_db.py               # Script per popolare il database da zero
-├── Dockerfile                # Container Docker per il deploy
+├── Dockerfile                # Container Docker per il deploy backend
 └── README.md
 ```
 
 ---
 
-## 🚀 Avvio Rapido
+## 🚀 Avvio Rapido (Sviluppo Locale)
 
 ### Prerequisiti
 
 - **Python 3.11+**
 - **Node.js 18+** e npm
-- (Opzionale) **Redis** per il caching delle ricerche
 
-### 1. Backend
+### Avvio Veloce Frontend (collegato a Render Cloud)
 
-```bash
-# Dalla root del progetto
-cd backend
-pip install -r requirements.txt
-
-# Torna alla root per avviare il server
-cd ..
-uvicorn backend.main:app --reload --port 8000
-```
-
-> ⚠️ **Importante:** il server va avviato dalla **root del progetto**, non dalla cartella `backend/`.
-> Al primo avvio con database vuoto, lo scraping completo parte automaticamente (~8-10 minuti).
-
-### 2. Frontend (nuovo terminale)
+Se il backend è già hostato su Render, ti basta avviare il frontend:
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+Vai su **http://localhost:5173** — le chiamate API andranno in automatico sul server di produzione grazie al proxy in `vite.config.js`.
 
-### 3. Apri il browser
+### Sviluppo Full-Stack (Backend Locale)
 
-Vai su **http://localhost:5173** — il proxy Vite inoltrerà le chiamate API a `localhost:8000`.
+Se vuoi modificare anche il backend, avvialo localmente:
+```bash
+# Dalla root del progetto
+cd backend
+pip install -r requirements.txt
+cd ..
+uvicorn backend.main:app --reload --port 8000
+```
+*(Ricordati di modificare temporaneamente il proxy di `vite.config.js` per puntare a `localhost:8000` invece di Render).*
 
 ---
 
 ## 📡 API Endpoints
 
+Il backend riconosce gli utenti tramite l'header `X-Session-Id` e salva progressi/preferiti nel DB.
+
 | Metodo | Endpoint | Descrizione |
 |--------|----------|-------------|
 | `GET` | `/status` | Stato del server e conteggio anime |
 | `GET` | `/search?q=...&limit=20` | Ricerca anime per titolo |
-| `GET` | `/catalog?page=0&per_page=50&sort=title&genre=...&status=...&year=...&search=...` | Catalogo paginato con filtri |
-| `GET` | `/filters` | Lista generi, anni e stati disponibili |
+| `GET` | `/catalog?page=0...` | Catalogo paginato con filtri |
 | `GET` | `/anime/{anime_id}` | Dettaglio anime con lista episodi |
-| `GET` | `/episode/{episode_id}/video` | URL diretto del flusso video |
+| `GET` | `/episode/{id}/video` | URL diretto del flusso video |
 | `GET` | `/new?limit=20` | Ultimi episodi aggiunti |
-| `GET` | `/watch` | Lista progressi visione recenti |
+| `GET` | `/watch` | Lista progressi visione recenti (per la sessione) |
 | `GET` | `/watch/{anime_id}` | Ultimo episodio visto per un anime |
 | `POST` | `/watch/{anime_id}?episode_id=...` | Salva progresso visione |
-| `POST` | `/cache/refresh` | Ricostruisce il database da zero |
-| `GET` | `/debug/page/{letter}` | Debug struttura HTML pagina A-Z |
+| `GET` | `/favorites` | Ritorna la lista degli anime tra i preferiti |
+| `POST` | `/favorites/{anime_id}` | Aggiunge un anime ai preferiti |
+| `DELETE` | `/favorites/{anime_id}` | Rimuove un anime dai preferiti |
+| `POST` | `/sync-catalog` | Avvia il job per sincronizzare l'intero catalogo |
 
 ---
 
-## 🗄️ Database
+## 🗄️ Database e Deploy
 
-Il database SQLite (`backend/anisearch.db`) contiene tre tabelle:
+Il database utilizza SQLModel, compatibile sia con SQLite (locale) che PostgreSQL (in produzione su Render). 
+Tabelle principali:
 
 | Tabella | Descrizione |
 |---------|-------------|
 | `anime` | Catalogo completo (id, titolo, url, immagine, tipo, stato, anno, rating, generi) |
-| `episodes` | Episodi associati ad ogni anime |
-| `watch_progress` | Ultimo episodio visto per anime (tracciamento visione) |
-
-### Ricostruire il Database
-
-Per ripopolare o aggiornare manualmente il database con l'intero catalogo:
-
-```bash
-# Dalla root del progetto
-python build_db.py
-```
-
-Lo script pulisce il DB e avvia lo scraping completo di tutte le pagine A-Z con arricchimento metadati. Richiede circa **8-10 minuti** e indicizza **6.500+ anime**.
+| `episode` | Episodi associati ad ogni anime |
+| `watchprogress`| Tracciamento visione (join con Anime e Episode) basato su `session_id` |
+| `favorite` | Tracciamento preferiti basato su `session_id` |
 
 ---
 
