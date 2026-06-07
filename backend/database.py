@@ -380,8 +380,8 @@ class AnimeDatabase:
         async with AsyncSession(engine) as session:
             stmt = (
                 select(WatchProgress, Anime.title.label("anime_title"), Anime.image.label("anime_image"), Episode.episode.label("episode_number"))
-                .join(Anime, WatchProgress.anime_id == Anime.id)
-                .join(Episode, WatchProgress.episode_id == Episode.id)
+                .outerjoin(Anime, WatchProgress.anime_id == Anime.id)
+                .outerjoin(Episode, WatchProgress.episode_id == Episode.id)
                 .where(WatchProgress.session_id == session_id)
                 .order_by(WatchProgress.updated_at.desc())
                 .limit(limit)
@@ -392,9 +392,9 @@ class AnimeDatabase:
             for row in rows:
                 wp_obj = row[0]
                 wp_dict = wp_obj.model_dump() if hasattr(wp_obj, 'model_dump') else wp_obj.dict() if hasattr(wp_obj, 'dict') else {}
-                wp_dict["anime_title"] = row[1]
-                wp_dict["anime_image"] = row[2]
-                wp_dict["episode_number"] = row[3]
+                wp_dict["anime_title"] = row[1] or f"Anime {wp_obj.anime_id}"
+                wp_dict["anime_image"] = row[2] or f"https://img.animeworld.ac/locandine/{wp_obj.anime_id}.jpg"
+                wp_dict["episode_number"] = row[3] or "?"
                 watch_progresses.append(wp_dict)
             return watch_progresses
 

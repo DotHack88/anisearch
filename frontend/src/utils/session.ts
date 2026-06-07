@@ -21,7 +21,7 @@ export function getSessionId(): string {
 
 /** Sostituisce l'ID corrente con uno importato da un altro dispositivo. */
 export function importSessionId(newId: string): void {
-  const clean = newId.trim().toUpperCase()
+  const clean = newId.trim()
   if (!clean) throw new Error('Codice non valido')
   localStorage.setItem(SESSION_KEY, clean)
   // Forza il reload per applicare il nuovo session_id a tutte le API

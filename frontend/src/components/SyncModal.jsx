@@ -85,7 +85,7 @@ export default function SyncModal({ onClose }) {
                 Questo è il tuo codice personale. Copialo e incollalo su un altro dispositivo per sincronizzare tutto il tuo profilo (preferiti, cronologia, progresso).
               </p>
               <div className="flex items-center gap-3">
-                <div className="flex-1 px-4 py-3 bg-bg border border-border rounded-xl font-mono text-accent text-center font-bold tracking-[0.3em] text-lg select-all">
+                <div className="flex-1 px-4 py-3 bg-bg border border-border rounded-xl font-mono text-accent text-center font-bold tracking-widest text-sm select-all break-all min-h-[48px] flex items-center justify-center">
                   {myCode}
                 </div>
                 <button
@@ -117,10 +117,9 @@ export default function SyncModal({ onClose }) {
                   <input
                     type="text"
                     value={inputCode}
-                    onChange={e => { setInputCode(e.target.value.toUpperCase()); setError('') }}
-                    placeholder="XXXXX-XXXXX-XXXXX"
-                    maxLength={17}
-                    className="w-full px-4 py-3 bg-bg border border-border rounded-xl font-mono text-center text-accent tracking-[0.3em] text-lg placeholder:text-muted placeholder:tracking-normal font-bold focus:outline-none focus:border-accent transition-colors"
+                    onChange={e => { setInputCode(e.target.value); setError('') }}
+                    placeholder="Incolla il tuo codice qui"
+                    className="w-full px-4 py-3 bg-bg border border-border rounded-xl font-mono text-center text-accent text-base placeholder:text-muted placeholder:tracking-normal font-bold focus:outline-none focus:border-accent transition-colors"
                   />
                   {error && <p className="text-sm text-red-400 text-center font-body">{error}</p>}
                   <button
