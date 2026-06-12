@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import AnimeLoader from './components/AnimeLoader.jsx'
+import ScrollToTop from './components/ScrollToTop.jsx'
 import Home from './pages/Home.jsx'
 import AnimePage from './pages/AnimePage.jsx'
 import CatalogPage from './pages/CatalogPage.jsx'
@@ -25,6 +26,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg text-text">
       {loading && <AnimeLoader onComplete={handleLoaderComplete} />}
+      <ScrollToTop />
       <Navbar />
       <main>
         <ErrorBoundary>

@@ -100,7 +100,7 @@ export default function AnimePage() {
             {/* Descrizione */}
             {loading && !anime?.description
               ? <div className="mt-4 space-y-2"><Sk className="h-3 w-full" /><Sk className="h-3 w-5/6" /><Sk className="h-3 w-4/6" /></div>
-              : anime?.description && <p className="mt-4 text-sm text-text-dim font-body leading-relaxed line-clamp-3">{anime.description}</p>
+              : anime?.description && <p className="mt-4 text-sm text-text-dim font-body leading-relaxed">{anime.description}</p>
             }
 
             {/* Azioni */}
