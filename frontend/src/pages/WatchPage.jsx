@@ -338,7 +338,7 @@ export default function WatchPage() {
               />
             )}
 
-            <div 
+            <div
               className={`video-player-container mx-auto border border-border shadow-2xl relative bg-black overflow-hidden ${!cinemaMode ? 'w-full' : 'max-w-full'}`}
               style={cinemaMode ? { width: 'calc(85vh * 16 / 9)' } : {}}
             >

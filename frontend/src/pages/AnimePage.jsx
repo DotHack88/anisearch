@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import EpisodeList from '../components/EpisodeList.jsx'
+import AnimeCard from '../components/AnimeCard.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
-import { getAnimeDetail, getWatchProgress } from '../utils/api'
+import { getAnimeDetail, getWatchProgress, searchAnime } from '../utils/api'
 
 const Sk = ({ className }) => <div className={`skeleton rounded-lg ${className}`} />
 
@@ -16,13 +17,36 @@ export default function AnimePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState(null)
+  const [related, setRelated] = useState([])
   const fav = isFavorite(id)
 
   useEffect(() => {
     window.scrollTo(0, 0)
-    setLoading(true); setError(null)
+    setLoading(true); setError(null); setRelated([])
     getAnimeDetail(id)
-      .then(data => setAnime(prev => ({ ...prev, ...data })))
+      .then(data => {
+        setAnime(prev => ({ ...prev, ...data }))
+        
+        if (data.title) {
+          let baseTitle = data.title
+            .replace(/\s*\(.*?\)/g, '')
+            .replace(/\s+(?:the\s+)?movie\b.*/i, '')
+            .replace(/\s+(?:st|nd|rd|th)?\s*season\b.*/i, '')
+            .replace(/\s+ova\b.*/i, '')
+            .replace(/\s+ona\b.*/i, '')
+            .replace(/\s+\d+$/, '')
+            .trim();
+            
+          const searchWords = baseTitle.split(/\s+/).slice(0, 4).join(' ');
+          
+          searchAnime(searchWords, 15)
+            .then(res => {
+              const filtered = res.filter(a => a.id !== id);
+              setRelated(filtered);
+            })
+            .catch(() => {});
+        }
+      })
       .catch(() => setError('Impossibile caricare i dettagli.'))
       .finally(() => setLoading(false))
 
@@ -145,6 +169,20 @@ export default function AnimePage() {
           }
           {error && <p className="text-sm text-yellow-400 font-body mt-4">⚠️ {error}</p>}
         </div>
+
+        {/* Anime Correlati */}
+        {!loading && related.length > 0 && (
+          <div className="pb-16">
+            <h2 className="font-display text-2xl tracking-wide text-text mb-5 flex items-center gap-2">
+              CORRELATI
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {related.map(relAnime => (
+                <AnimeCard key={relAnime.id} anime={relAnime} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
