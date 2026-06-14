@@ -20,17 +20,21 @@ const SORT_OPTIONS = [
 ]
 
 // ─── Progress Bar ─────────────────────────────────────────────────────────────
-function ProgressBar({ value, status }) {
+function ProgressBar({ value, status, hasTotal, episodesWatched }) {
   const color = status === 'completato' ? '#10b981'
     : status === 'in_pausa' ? '#f59e0b'
     : status === 'abbandonato' ? '#ef4444'
     : '#8b5cf6'
 
+  // If no total is set but user has watched episodes, show an indeterminate-style fill
+  const displayValue = hasTotal ? value : (episodesWatched > 0 ? Math.min(85, episodesWatched * 8) : 0)
+  const isIndeterminate = !hasTotal && episodesWatched > 0
+
   return (
     <div className="relative h-1.5 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
       <div
-        className="h-full rounded-full transition-all duration-700"
-        style={{ width: `${value}%`, background: `linear-gradient(90deg, ${color}cc, ${color})` }}
+        className={`h-full rounded-full transition-all duration-700${isIndeterminate ? ' opacity-60' : ''}`}
+        style={{ width: `${displayValue}%`, background: `linear-gradient(90deg, ${color}cc, ${color})` }}
       />
     </div>
   )
@@ -43,10 +47,10 @@ function StatCard({ emoji, label, value, sub, accent }) {
       style={{ background: 'rgba(11,11,18,0.7)', borderColor: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
       <div className="flex items-center justify-between mb-1">
         <span className="text-xl">{emoji}</span>
-        <span className="text-3xl font-black font-display" style={{ color: accent }}>{value}</span>
+        <span className="text-3xl font-black" style={{ color: accent, fontFamily: 'var(--font-display)' }}>{value}</span>
       </div>
-      <p className="text-xs font-semibold text-text-dim font-body">{label}</p>
-      {sub && <p className="text-[10px] text-muted font-body">{sub}</p>}
+      <p className="text-xs font-semibold" style={{ color: 'var(--color-text-dim)', fontFamily: 'var(--font-body)' }}>{label}</p>
+      {sub && <p className="text-[10px]" style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-body)' }}>{sub}</p>}
     </div>
   )
 }
@@ -165,7 +169,13 @@ function EditModal({ anime, onSave, onClose }) {
 function WatchlistCard({ anime, onEdit, onRemove }) {
   const cfg = STATUS_CONFIG[anime.watchlist_status] || STATUS_CONFIG.da_guardare
   const img = anime.image || `https://img.animeworld.ac/locandine/${anime.id}.jpg`
-  const progress = anime.progress ?? 0
+  const episodesWatched = anime.episodes_watched ?? 0
+  const episodesTotal = anime.episodes_total ?? null
+  // Compute progress locally: if total is known use it, otherwise 0 but show activity bar
+  const progress = episodesTotal > 0
+    ? Math.min(100, Math.round((episodesWatched / episodesTotal) * 100))
+    : (anime.progress ?? 0)
+  const hasTotal = episodesTotal != null && episodesTotal > 0
 
   const dateLabel = anime.last_update
     ? new Date(anime.last_update).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: '2-digit' })
@@ -183,7 +193,8 @@ function WatchlistCard({ anime, onEdit, onRemove }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* Status Badge */}
-        <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold border font-body ${cfg.bg} ${cfg.border} ${cfg.color}`}>
+        <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold border ${cfg.bg} ${cfg.border} ${cfg.color}`}
+          style={{ fontFamily: 'var(--font-body)' }}>
           {cfg.emoji} {cfg.label}
         </div>
 
@@ -205,31 +216,37 @@ function WatchlistCard({ anime, onEdit, onRemove }) {
       {/* Info */}
       <div className="p-3 flex flex-col gap-2 flex-1">
         <Link to={`/anime/${anime.id}`} state={anime}>
-          <h3 className="text-xs font-bold text-text line-clamp-2 leading-snug font-body group-hover:text-accent transition-colors">{anime.title}</h3>
+          <h3 className="text-xs font-bold line-clamp-2 leading-snug group-hover:text-accent transition-colors"
+            style={{ color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
+            {anime.title}
+          </h3>
         </Link>
 
         {/* Episode progress */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-[10px] font-body">
-            <span className="text-muted">
-              Ep. <span className="text-text font-semibold">{anime.episodes_watched ?? 0}</span>
-              {anime.episodes_total ? <span className="text-muted">/{anime.episodes_total}</span> : ''}
+          <div className="flex items-center justify-between text-[10px]" style={{ fontFamily: 'var(--font-body)' }}>
+            <span style={{ color: 'var(--color-muted)' }}>
+              Ep. <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{episodesWatched}</span>
+              {hasTotal && <span style={{ color: 'var(--color-muted)' }}>/{episodesTotal}</span>}
             </span>
-            <span className={`font-bold ${cfg.color}`}>{progress}%</span>
+            <span className={`font-bold ${cfg.color}`}>
+              {hasTotal ? `${progress}%` : (episodesWatched > 0 ? `${episodesWatched} ep` : '—')}
+            </span>
           </div>
-          <ProgressBar value={progress} status={anime.watchlist_status} />
+          <ProgressBar value={progress} status={anime.watchlist_status} hasTotal={hasTotal} episodesWatched={episodesWatched} />
         </div>
 
         {/* Notes */}
         {anime.notes && (
-          <p className="text-[9px] text-muted font-body line-clamp-1 italic border-t pt-1.5" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+          <p className="text-[9px] line-clamp-1 italic border-t pt-1.5"
+            style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-body)', borderColor: 'rgba(255,255,255,0.05)' }}>
             "{anime.notes}"
           </p>
         )}
 
         {/* Date */}
         {dateLabel && (
-          <p className="text-[9px] text-muted font-body">
+          <p className="text-[9px]" style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-body)' }}>
             Aggiornato {dateLabel}
           </p>
         )}
@@ -279,12 +296,13 @@ export default function WatchlistPage() {
           background: 'radial-gradient(ellipse 60% 80% at 50% 0%, rgba(139,92,246,0.12), transparent)'
         }} />
         <div className="max-w-7xl mx-auto relative">
-          <h1 className="font-display text-5xl sm:text-6xl font-black text-white tracking-wide mb-2">
+          <h1 className="text-5xl sm:text-6xl font-black tracking-wide mb-2"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>
             <span style={{ background: 'linear-gradient(135deg, #c084fc, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               LA MIA LISTA
             </span>
           </h1>
-          <p className="text-text-dim font-body text-sm">La tua libreria personale di anime.</p>
+          <p className="text-sm" style={{ color: 'var(--color-text-dim)', fontFamily: 'var(--font-body)' }}>La tua libreria personale di anime.</p>
         </div>
       </div>
 
@@ -304,14 +322,14 @@ export default function WatchlistPage() {
             {/* Global progress bar */}
             <div className="rounded-2xl border p-5" style={{ background: 'rgba(11,11,18,0.7)', borderColor: 'rgba(255,255,255,0.06)' }}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold font-body text-text-dim">Completamento Globale</p>
-                <p className="text-2xl font-black font-display text-emerald-400">{stats.completamento_globale}%</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-text-dim)', fontFamily: 'var(--font-body)' }}>Completamento Globale</p>
+                <p className="text-2xl font-black" style={{ color: '#10b981', fontFamily: 'var(--font-display)' }}>{stats.completamento_globale}%</p>
               </div>
               <div className="relative h-2 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
                 <div className="h-full rounded-full transition-all duration-1000"
                   style={{ width: `${stats.completamento_globale}%`, background: 'linear-gradient(90deg, #059669, #10b981, #34d399)' }} />
               </div>
-              <div className="flex justify-between mt-2 text-[10px] text-muted font-body">
+              <div className="flex justify-between mt-2 text-[10px]" style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-body)' }}>
                 <span>{stats.completati} completati su {stats.totale} totali</span>
                 <span>{stats.totale - stats.completati} rimanenti</span>
               </div>
@@ -327,11 +345,16 @@ export default function WatchlistPage() {
               const isActive = activeTab === key
               return (
                 <button key={key} onClick={() => setActiveTab(key)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold font-body whitespace-nowrap transition-all border ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
                     isActive
                       ? (cfg ? `${cfg.bg} ${cfg.border} ${cfg.color}` : 'bg-violet-500/20 border-violet-500/40 text-violet-400')
-                      : 'bg-transparent border-transparent text-muted hover:text-text'
-                  }`}>
+                      : 'border-transparent hover:text-text'
+                  }`}
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    background: !isActive ? 'transparent' : undefined,
+                    color: !isActive ? 'var(--color-muted)' : undefined,
+                  }}>
                   {cfg?.emoji && <span>{cfg.emoji}</span>}
                   {label}
                   {count > 0 && (
@@ -366,10 +389,10 @@ export default function WatchlistPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-24 rounded-2xl border border-dashed" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(11,11,18,0.5)' }}>
             <p className="text-5xl mb-4">{activeTab === 'tutti' ? '📺' : STATUS_CONFIG[activeTab]?.emoji}</p>
-            <p className="text-lg font-bold text-text font-display mb-1">
+            <p className="text-lg font-bold mb-1" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
               {activeTab === 'tutti' ? 'La tua lista è vuota' : `Nessun anime in "${STATUS_CONFIG[activeTab]?.label}"`}
             </p>
-            <p className="text-text-dim font-body text-sm mb-6">
+            <p className="text-sm mb-6" style={{ color: 'var(--color-text-dim)', fontFamily: 'var(--font-body)' }}>
               {activeTab === 'tutti' ? 'Aggiungi un anime dalla sua scheda per iniziare a tracciarlo.' : 'Prova a esplorare le altre categorie.'}
             </p>
             {activeTab === 'tutti' && (
