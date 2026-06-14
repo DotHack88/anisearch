@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
-import { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress } from '../utils/api'
+import { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress, searchAnime } from '../utils/api'
 import { useDownloads } from '../hooks/useDownloads.js'
+import AnimeCard from '../components/AnimeCard.jsx'
 
 export default function WatchPage() {
   const { animeId, episodeId } = useParams()
@@ -20,6 +21,7 @@ export default function WatchPage() {
   const [isOfflinePlay, setIsOfflinePlay] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [related, setRelated] = useState([])
   const [lightsOff, setLightsOff] = useState(false)
   const [ambilightActive, setAmbilightActive] = useState(true)
   const [cinemaMode, setCinemaMode] = useState(() => localStorage.getItem('cinema_mode') === 'true')
@@ -76,6 +78,29 @@ export default function WatchPage() {
         .catch(err => console.error('Error fetching episodes context:', err))
     }
   }, [animeId, episodes.length, animeTitle])
+
+  // Fetch related anime
+  useEffect(() => {
+    if (animeTitle) {
+      let baseTitle = animeTitle
+        .replace(/\s*\(.*?\)/g, '')
+        .replace(/\s+(?:the\s+)?movie\b.*/i, '')
+        .replace(/\s+(?:st|nd|rd|th)?\s*season\b.*/i, '')
+        .replace(/\s+ova\b.*/i, '')
+        .replace(/\s+ona\b.*/i, '')
+        .replace(/\s+\d+$/, '')
+        .trim();
+        
+      const searchWords = baseTitle.split(/\s+/).slice(0, 4).join(' ');
+      
+      searchAnime(searchWords, 15)
+        .then(res => {
+          const filtered = res.filter(a => String(a.id) !== String(animeId));
+          setRelated(filtered);
+        })
+        .catch(() => {});
+    }
+  }, [animeTitle, animeId])
 
   // Fetch or retrieve offline video URL on episodeId change
   useEffect(() => {
@@ -547,6 +572,20 @@ export default function WatchPage() {
           </div>
         </div>
       </div>
+
+      {/* Anime Correlati */}
+      {related.length > 0 && (
+        <div className="mt-12 pb-16">
+          <h2 className="font-display text-2xl tracking-wide text-text mb-5 flex items-center gap-2">
+            CORRELATI
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {related.map(relAnime => (
+              <AnimeCard key={relAnime.id} anime={relAnime} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
