@@ -1,9 +1,9 @@
 import axios from 'axios'
 import { getSessionId } from './session'
 
-// In sviluppo (npm run dev): usa il proxy Vite locale → http://localhost:8000
+// In sviluppo (npm run dev): usa il backend locale in esecuzione sulla porta 8000
 // In produzione (Vercel): usa VITE_API_URL o il fallback su Render
-const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrender.com/api')
+const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : (import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrender.com')
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -60,5 +60,24 @@ export const getRecentWatchProgress = async () => (await api.get('/watch')).data
 export const getFavorites = async () => (await api.get<Anime[]>('/favorites')).data
 export const addFavorite = async (animeId: string) => (await api.post(`/favorites/${animeId}`)).data
 export const removeFavoriteApi = async (animeId: string) => (await api.delete(`/favorites/${animeId}`)).data
+
+export interface WatchlistItem extends Anime {
+  watchlist_status: string;
+  episodes_watched: number;
+  episodes_total: number | null;
+  progress: number;
+  notes: string | null;
+  added_at: string | null;
+  last_update: string | null;
+  completed_at: string | null;
+}
+
+export const getWatchlist = async (status?: string) => (await api.get<WatchlistItem[]>('/watchlist', { params: status ? { status } : {} })).data
+export const getWatchlistStats = async () => (await api.get('/watchlist/stats')).data
+export const addWatchlist = async (animeId: string, status: string = 'da_guardare', episodesWatched?: number, episodesTotal?: number, notes?: string) =>
+  (await api.post(`/watchlist/${animeId}`, null, { params: { status, ...(episodesWatched != null && { episodes_watched: episodesWatched }), ...(episodesTotal != null && { episodes_total: episodesTotal }), ...(notes != null && { notes }) } })).data
+export const updateWatchlist = async (animeId: string, status: string, episodesWatched?: number, episodesTotal?: number, notes?: string) =>
+  (await api.put(`/watchlist/${animeId}`, null, { params: { status, ...(episodesWatched != null && { episodes_watched: episodesWatched }), ...(episodesTotal != null && { episodes_total: episodesTotal }), ...(notes != null && { notes }) } })).data
+export const removeWatchlistApi = async (animeId: string) => (await api.delete(`/watchlist/${animeId}`)).data
 
 export default api

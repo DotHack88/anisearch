@@ -8,6 +8,7 @@ import Home from './pages/Home.jsx'
 import AnimePage from './pages/AnimePage.jsx'
 import CatalogPage from './pages/CatalogPage.jsx'
 import FavoritesPage from './pages/FavoritesPage.jsx'
+import WatchlistPage from './pages/WatchlistPage.jsx'
 import WatchPage from './pages/WatchPage.jsx'
 import DownloadsPage from './pages/DownloadsPage.jsx'
 import NewEpisodesPage from './pages/NewEpisodesPage.jsx'
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/anime/:id"     element={<AnimePage />} />
             <Route path="/watch/:animeId/:episodeId" element={<WatchPage />} />
             <Route path="/favorites"     element={<FavoritesPage />} />
+            <Route path="/watchlist"     element={<WatchlistPage />} />
             <Route path="/downloads"     element={<DownloadsPage />} />
             <Route path="/nuovi-episodi" element={<NewEpisodesPage />} />
             <Route path="*" element={

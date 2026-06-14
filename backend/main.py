@@ -64,6 +64,10 @@ try:
     _has_slowapi = True
 except ImportError:
     _has_slowapi = False
+    Limiter = None  # type: ignore
+    _rate_limit_exceeded_handler = None  # type: ignore
+    get_remote_address = None  # type: ignore
+    RateLimitExceeded = Exception  # type: ignore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -172,9 +176,12 @@ app = FastAPI(title="AniSearch API", version="2.1.0", lifespan=lifespan)
 
 # --- Rate limiting setup ---
 if _has_slowapi:
+    assert get_remote_address is not None
+    assert Limiter is not None
+    assert _rate_limit_exceeded_handler is not None
     limiter = Limiter(key_func=get_remote_address)
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
 else:
     limiter = None
 
@@ -186,7 +193,7 @@ app.add_middleware(
         "http://localhost:3000",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -339,6 +346,43 @@ async def remove_favorite(anime_id: str, session_id: str = Depends(get_or_create
     await db.remove_favorite(session_id, anime_id)
     return {"status": "deleted"}
 
+@app.get("/watchlist")
+async def get_watchlist(status: str = Query(""), session_id: str = Depends(get_or_create_session)):
+    return await db.get_watchlist(session_id, status_filter=status or None)
+
+@app.get("/watchlist/stats")
+async def get_watchlist_stats(session_id: str = Depends(get_or_create_session)):
+    return await db.get_watchlist_stats(session_id)
+
+@app.post("/watchlist/{anime_id}")
+async def add_to_watchlist(
+    anime_id: str,
+    status: str = Query("da_guardare"),
+    episodes_watched: int = Query(None),
+    episodes_total: int = Query(None),
+    notes: str = Query(None),
+    session_id: str = Depends(get_or_create_session)
+):
+    await db.save_watchlist(session_id, anime_id, status, episodes_watched, episodes_total, notes)
+    return {"status": "saved"}
+
+@app.put("/watchlist/{anime_id}")
+async def update_watchlist(
+    anime_id: str,
+    status: str = Query(...),
+    episodes_watched: int = Query(None),
+    episodes_total: int = Query(None),
+    notes: str = Query(None),
+    session_id: str = Depends(get_or_create_session)
+):
+    await db.save_watchlist(session_id, anime_id, status, episodes_watched, episodes_total, notes)
+    return {"status": "updated"}
+
+@app.delete("/watchlist/{anime_id}")
+async def remove_from_watchlist(anime_id: str, session_id: str = Depends(get_or_create_session)):
+    await db.remove_watchlist(session_id, anime_id)
+    return {"status": "deleted"}
+
 
 # Extend anime_detail to store episodes after fetching
 @app.get("/anime/{anime_id}")
@@ -380,7 +424,7 @@ async def anime_detail(anime_id: str):
     if not base:
         raise HTTPException(404, "Anime non trovato")
     try:
-        detail = await asyncio.to_thread(scraper.get_anime_detail, base["url"])
+        detail = await asyncio.to_thread(scraper.get_anime_detail, str(base["url"]))
         # Store episodes in DB if present
         episodes = detail.get("episodes", [])
         for ep in episodes:

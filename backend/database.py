@@ -73,6 +73,18 @@ class Favorite(SQLModel, table=True):
     anime_id: str = Field(primary_key=True, foreign_key="anime.id")
     added_at: Optional[str] = None
 
+class Watchlist(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    anime_id: str = Field(primary_key=True, foreign_key="anime.id")
+    # stati: "da_guardare" | "in_visione" | "completato" | "in_pausa" | "abbandonato"
+    status: str = Field(default="da_guardare")
+    episodes_watched: Optional[int] = Field(default=0)
+    episodes_total: Optional[int] = Field(default=None)
+    notes: Optional[str] = Field(default=None)
+    added_at: Optional[str] = None
+    last_update: Optional[str] = None
+    completed_at: Optional[str] = None
+
 # ---------- Helper ----------
 def _parse_genres(genres_str: Optional[str]) -> List[str]:
     if not genres_str:
@@ -214,14 +226,14 @@ class AnimeDatabase:
     async def get_all_years(self) -> List[str]:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(Anime.year).where(Anime.year.isnot(None), Anime.year != ""))
+            result = await session.exec(select(Anime.year).where(Anime.year.isnot(None), Anime.year != ""))  # type: ignore
             years = {y for y in result.all() if y}
             return sorted(years, reverse=True)
 
     async def get_all_statuses(self) -> List[str]:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(Anime.status).where(Anime.status.isnot(None), Anime.status != ""))
+            result = await session.exec(select(Anime.status).where(Anime.status.isnot(None), Anime.status != ""))  # type: ignore
             statuses = {s for s in result.all() if s}
             return sorted(statuses)
 
@@ -249,18 +261,18 @@ class AnimeDatabase:
             if search:
                 stmt = stmt.where(func.lower(Anime.title).like(func.lower(f"%{search}%")))
             if genre:
-                stmt = stmt.where(Anime.genres.like(f'%"{genre}"%'))
+                stmt = stmt.where(Anime.genres.like(f'%"{genre}"%'))  # type: ignore
             if status:
                 stmt = stmt.where(Anime.status == status)
             if year:
                 stmt = stmt.where(Anime.year == year)
             # Sorting
             if sort_by == "title":
-                stmt = stmt.order_by(Anime.title.asc())
+                stmt = stmt.order_by(Anime.title.asc())  # type: ignore
             elif sort_by == "year":
-                stmt = stmt.order_by(Anime.year.desc())
+                stmt = stmt.order_by(Anime.year.desc())  # type: ignore
             elif sort_by == "rating":
-                stmt = stmt.order_by(Anime.rating.cast(float).desc())
+                stmt = stmt.order_by(Anime.rating.cast(float).desc())  # type: ignore
             # Total count
             count_stmt = select(func.count()).select_from(stmt.subquery())
             total_res = await session.exec(count_stmt)
@@ -321,9 +333,9 @@ class AnimeDatabase:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             stmt = (
-                select(Episode, Anime.title.label("anime_title"), Anime.image.label("anime_image"))
-                .join(Anime, Episode.anime_id == Anime.id)
-                .order_by(Episode.added_at.desc())
+                select(Episode, Anime.title.label("anime_title"), Anime.image.label("anime_image"))  # type: ignore
+                .join(Anime, Episode.anime_id == Anime.id)  # type: ignore
+                .order_by(Episode.added_at.desc())  # type: ignore
                 .limit(limit)
             )
             result = await session.exec(stmt)
@@ -334,7 +346,7 @@ class AnimeDatabase:
                     episodes.append(row._asdict())
                 elif isinstance(row, tuple) and len(row) >= 1:
                     obj = row[0]
-                    ep = obj.model_dump() if hasattr(obj, 'model_dump') else obj.dict() if hasattr(obj, 'dict') else {}
+                    ep = obj.model_dump()
                     if len(row) > 1:
                         ep["anime_title"] = row[1]
                     if len(row) > 2:
@@ -349,7 +361,7 @@ class AnimeDatabase:
         import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
+            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))  # type: ignore
             wp = result.one_or_none()
             now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
             if wp:
@@ -363,7 +375,7 @@ class AnimeDatabase:
     async def get_watch_progress(self, session_id: str, anime_id: str) -> Optional[dict]:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
+            result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))  # type: ignore
             wp = result.one_or_none()
             if wp:
                 return {"episode_id": wp.episode_id, "updated_at": wp.updated_at}
@@ -372,18 +384,18 @@ class AnimeDatabase:
     async def delete_watch_progress(self, session_id: str, anime_id: str) -> None:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            await session.exec(delete(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))
+            await session.exec(delete(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))  # type: ignore
             await session.commit()
 
     async def get_recent_watch_progress(self, session_id: str, limit: int = 10) -> List[dict]:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             stmt = (
-                select(WatchProgress, Anime.title.label("anime_title"), Anime.image.label("anime_image"), Episode.episode.label("episode_number"))
-                .outerjoin(Anime, WatchProgress.anime_id == Anime.id)
-                .outerjoin(Episode, WatchProgress.episode_id == Episode.id)
-                .where(WatchProgress.session_id == session_id)
-                .order_by(WatchProgress.updated_at.desc())
+                select(WatchProgress, Anime.title.label("anime_title"), Anime.image.label("anime_image"), Episode.episode.label("episode_number"))  # type: ignore
+                .outerjoin(Anime, WatchProgress.anime_id == Anime.id)  # type: ignore
+                .outerjoin(Episode, WatchProgress.episode_id == Episode.id)  # type: ignore
+                .where(WatchProgress.session_id == session_id)  # type: ignore
+                .order_by(WatchProgress.updated_at.desc())  # type: ignore
                 .limit(limit)
             )
             result = await session.exec(stmt)
@@ -391,7 +403,7 @@ class AnimeDatabase:
             watch_progresses = []
             for row in rows:
                 wp_obj = row[0]
-                wp_dict = wp_obj.model_dump() if hasattr(wp_obj, 'model_dump') else wp_obj.dict() if hasattr(wp_obj, 'dict') else {}
+                wp_dict = wp_obj.model_dump()
                 wp_dict["anime_title"] = row[1] or f"Anime {wp_obj.anime_id}"
                 wp_dict["anime_image"] = row[2] or f"https://img.animeworld.ac/locandine/{wp_obj.anime_id}.jpg"
                 wp_dict["episode_number"] = row[3] or "?"
@@ -403,7 +415,7 @@ class AnimeDatabase:
         import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(select(Favorite).where(Favorite.anime_id == anime_id, Favorite.session_id == session_id))
+            result = await session.exec(select(Favorite).where(Favorite.anime_id == anime_id, Favorite.session_id == session_id))  # type: ignore
             fav = result.one_or_none()
             if not fav:
                 now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -414,7 +426,7 @@ class AnimeDatabase:
     async def remove_favorite(self, session_id: str, anime_id: str) -> None:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            await session.exec(delete(Favorite).where(Favorite.anime_id == anime_id, Favorite.session_id == session_id))
+            await session.exec(delete(Favorite).where(Favorite.anime_id == anime_id, Favorite.session_id == session_id))  # type: ignore
             await session.commit()
 
     async def get_favorites(self, session_id: str) -> List[dict]:
@@ -422,10 +434,120 @@ class AnimeDatabase:
         async with AsyncSession(engine) as session:
             stmt = (
                 select(Anime)
-                .join(Favorite, Favorite.anime_id == Anime.id)
-                .where(Favorite.session_id == session_id)
-                .order_by(Favorite.added_at.desc())
+                .join(Favorite, Favorite.anime_id == Anime.id)  # type: ignore
+                .where(Favorite.session_id == session_id)  # type: ignore
+                .order_by(Favorite.added_at.desc())  # type: ignore
             )
             result = await session.exec(stmt)
             rows = result.all()
             return [_row_to_dict(r) for r in rows]
+
+    # ----- Watchlist -----
+    async def save_watchlist(
+        self,
+        session_id: str,
+        anime_id: str,
+        status: str = "da_guardare",
+        episodes_watched: Optional[int] = None,
+        episodes_total: Optional[int] = None,
+        notes: Optional[str] = None,
+    ) -> None:
+        import datetime
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Watchlist).where(Watchlist.anime_id == anime_id, Watchlist.session_id == session_id))  # type: ignore
+            item = result.one_or_none()
+            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            if item:
+                item.status = status
+                item.last_update = now_str
+                if episodes_watched is not None:
+                    item.episodes_watched = episodes_watched
+                if episodes_total is not None:
+                    item.episodes_total = episodes_total
+                if notes is not None:
+                    item.notes = notes
+                if status == "completato" and not item.completed_at:
+                    item.completed_at = now_str
+                elif status != "completato":
+                    item.completed_at = None
+            else:
+                item = Watchlist(
+                    session_id=session_id,
+                    anime_id=anime_id,
+                    status=status,
+                    episodes_watched=episodes_watched or 0,
+                    episodes_total=episodes_total,
+                    notes=notes,
+                    added_at=now_str,
+                    last_update=now_str,
+                    completed_at=now_str if status == "completato" else None,
+                )
+                session.add(item)
+            await session.commit()
+
+    async def remove_watchlist(self, session_id: str, anime_id: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            await session.exec(delete(Watchlist).where(Watchlist.anime_id == anime_id, Watchlist.session_id == session_id))  # type: ignore
+            await session.commit()
+
+    async def get_watchlist(self, session_id: str, status_filter: Optional[str] = None) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(Anime, Watchlist)
+                .join(Watchlist, Watchlist.anime_id == Anime.id)  # type: ignore
+                .where(Watchlist.session_id == session_id)  # type: ignore
+            )
+            if status_filter:
+                stmt = stmt.where(Watchlist.status == status_filter)
+            stmt = stmt.order_by(Watchlist.last_update.desc())  # type: ignore
+            result = await session.exec(stmt)
+            rows = result.all()
+
+            watchlist_items = []
+            for row in rows:
+                anime_dict = _row_to_dict(row[0])
+                wl: Watchlist = row[1]
+                eps_watched = wl.episodes_watched or 0
+                eps_total = wl.episodes_total
+                progress = 0
+                if eps_total and eps_total > 0:
+                    progress = round((eps_watched / eps_total) * 100)
+                    if progress > 100:
+                        progress = 100
+                anime_dict["watchlist_status"] = wl.status
+                anime_dict["episodes_watched"] = eps_watched
+                anime_dict["episodes_total"] = eps_total
+                anime_dict["progress"] = progress
+                anime_dict["notes"] = wl.notes
+                anime_dict["added_at"] = wl.added_at
+                anime_dict["last_update"] = wl.last_update
+                anime_dict["completed_at"] = wl.completed_at
+                watchlist_items.append(anime_dict)
+            return watchlist_items
+
+    async def get_watchlist_stats(self, session_id: str) -> dict:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(
+                select(Watchlist).where(Watchlist.session_id == session_id)
+            )
+            items = result.all()
+            totale = len(items)
+            completati = sum(1 for i in items if i.status == "completato")
+            in_visione = sum(1 for i in items if i.status == "in_visione")
+            da_guardare = sum(1 for i in items if i.status == "da_guardare")
+            in_pausa = sum(1 for i in items if i.status == "in_pausa")
+            abbandonati = sum(1 for i in items if i.status == "abbandonato")
+            global_pct = round((completati / totale) * 100) if totale > 0 else 0
+            return {
+                "totale": totale,
+                "completati": completati,
+                "in_visione": in_visione,
+                "da_guardare": da_guardare,
+                "in_pausa": in_pausa,
+                "abbandonati": abbandonati,
+                "completamento_globale": global_pct,
+            }

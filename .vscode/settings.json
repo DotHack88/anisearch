@@ -2,5 +2,12 @@
   "files.associations": {
     "*.css": "tailwindcss"
   },
-  "css.lint.unknownAtRules": "ignore"
+  "css.lint.unknownAtRules": "ignore",
+  "python.defaultInterpreterPath": "C:\\Users\\Emanuele\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+  "python.analysis.pythonPath": "C:\\Users\\Emanuele\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+  "python.analysis.extraPaths": [
+    "C:\\Users\\Emanuele\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages",
+    "c:\\Users\\Emanuele\\Desktop\\home\\claude\\anisearch\\.venv\\Lib\\site-packages",
+    "c:\\Users\\Emanuele\\Desktop\\home\\claude\\anisearch\\backend"
+  ]
 }

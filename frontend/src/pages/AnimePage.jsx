@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import EpisodeList from '../components/EpisodeList.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
+import { useWatchlist } from '../hooks/useWatchlist.jsx'
 import { getAnimeDetail, getWatchProgress, searchAnime } from '../utils/api'
 
 const Sk = ({ className }) => <div className={`skeleton rounded-lg ${className}`} />
@@ -11,6 +12,7 @@ export default function AnimePage() {
   const { id } = useParams()
   const { state: base } = useLocation()
   const { toggleFavorite, isFavorite } = useFavorites()
+  const { addToWatchlist, removeWatchlist, getItemStatus } = useWatchlist()
   const navigate = useNavigate()
 
   const [anime, setAnime] = useState(base?.title ? base : null)
@@ -18,7 +20,20 @@ export default function AnimePage() {
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState(null)
   const [related, setRelated] = useState([])
+  const [wsOpen, setWsOpen] = useState(false)
+  const wsRef = useRef(null)
   const fav = isFavorite(id)
+  const watchStatus = getItemStatus(id)
+
+  // Close watchlist dropdown on outside click or Escape
+  useEffect(() => {
+    if (!wsOpen) return
+    const handleClick = (e) => { if (wsRef.current && !wsRef.current.contains(e.target)) setWsOpen(false) }
+    const handleKey = (e) => { if (e.key === 'Escape') setWsOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => { document.removeEventListener('mousedown', handleClick); document.removeEventListener('keydown', handleKey) }
+  }, [wsOpen])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -146,12 +161,80 @@ export default function AnimePage() {
               )}
 
               {anime && (
-                <button onClick={() => toggleFavorite({ id, title: anime.title, image: img, type: anime.type })}
-                  className={`p-2.5 rounded-xl border transition-colors ${fav ? 'bg-accent/20 border-accent text-accent' : 'bg-surface border-border text-muted hover:border-accent/50 hover:text-accent'}`}>
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                    <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-                  </svg>
-                </button>
+                <>
+                  <button onClick={() => toggleFavorite({ id, title: anime.title, image: img, type: anime.type })}
+                    title="Aggiungi ai preferiti"
+                    className={`p-2.5 rounded-xl border transition-colors ${fav ? 'bg-accent/20 border-accent text-accent' : 'bg-surface border-border text-muted hover:border-accent/50 hover:text-accent'}`}>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                      <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                    </svg>
+                  </button>
+
+                  {/* Watchlist status selector */}
+                  {(() => {
+                    const STATUS_CFG = {
+                      da_guardare: { label: 'Da Vedere',   color: 'text-blue-400',   bg: 'bg-blue-500/15',   border: 'border-blue-500/40', emoji: '📌' },
+                      in_visione:  { label: 'In Visione',  color: 'text-violet-400', bg: 'bg-violet-500/15', border: 'border-violet-500/40', emoji: '▶️' },
+                      completato:  { label: 'Completato',  color: 'text-emerald-400',bg: 'bg-emerald-500/15',border: 'border-emerald-500/40', emoji: '✅' },
+                      in_pausa:    { label: 'In Pausa',    color: 'text-yellow-400', bg: 'bg-yellow-500/15', border: 'border-yellow-500/40', emoji: '⏸️' },
+                      abbandonato: { label: 'Abbandonato', color: 'text-red-400',    bg: 'bg-red-500/15',    border: 'border-red-500/40',    emoji: '❌' },
+                    }
+                    const cfg = STATUS_CFG[watchStatus]
+                    if (watchStatus && cfg) {
+                      return (
+                        <div ref={wsRef} className="relative">
+                          {/* Trigger */}
+                          <button
+                            onClick={() => setWsOpen(v => !v)}
+                            className={`p-2.5 rounded-xl border transition-colors flex items-center gap-2 text-sm font-semibold ${cfg.bg} ${cfg.border} ${cfg.color}`}>
+                            <span>{cfg.emoji}</span>
+                            <span className="hidden sm:inline">{cfg.label}</span>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                              style={{ transform: wsOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                              <path d="m6 9 6 6 6-6"/>
+                            </svg>
+                          </button>
+                          {/* Dropdown — click-based, no hover gap */}
+                          {wsOpen && (
+                            <div className="absolute left-0 top-full z-30 rounded-xl border overflow-hidden shadow-2xl animate-[pageFadeScale_0.15s_ease_forwards]"
+                              style={{ background: '#0e0e1a', borderColor: 'rgba(255,255,255,0.12)', minWidth: '190px', marginTop: '6px',
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)' }}>
+                              {Object.entries(STATUS_CFG).map(([key, c]) => (
+                                <button key={key}
+                                  onClick={() => {
+                                    if (key !== watchStatus) addToWatchlist({ id, title: anime.title, image: img, type: anime.type }, key)
+                                    setWsOpen(false)
+                                  }}
+                                  className={`w-full text-left px-4 py-2.5 text-xs font-semibold font-body flex items-center justify-between gap-2 transition-colors hover:bg-white/5 ${key === watchStatus ? c.color : 'text-text-dim'}`}>
+                                  <span className="flex items-center gap-2">{c.emoji} {c.label}</span>
+                                  {key === watchStatus && (
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                  )}
+                                </button>
+                              ))}
+                              <div className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                                <button onClick={() => { removeWatchlist(id); setWsOpen(false) }}
+                                  className="w-full text-left px-4 py-2.5 text-xs font-semibold font-body text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2">
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                  Rimuovi dalla lista
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+                    return (
+                      <button
+                        onClick={() => addToWatchlist({ id, title: anime.title, image: img, type: anime.type }, 'da_guardare')}
+                        title="Aggiungi alla Mia Lista"
+                        className="p-2.5 rounded-xl border transition-colors flex items-center gap-2 text-sm font-semibold bg-surface border-border text-muted hover:border-blue-500/50 hover:text-blue-400">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                        <span className="hidden sm:inline">+ La mia lista</span>
+                      </button>
+                    )
+                  })()}
+                </>
               )}
             </div>
           </div>
