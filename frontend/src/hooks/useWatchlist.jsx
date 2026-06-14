@@ -103,6 +103,16 @@ function refreshStats(items) {
   const da_guardare = items.filter(i => i.watchlist_status === 'da_guardare').length
   const in_pausa = items.filter(i => i.watchlist_status === 'in_pausa').length
   const abbandonati = items.filter(i => i.watchlist_status === 'abbandonato').length
+
+  // Weighted global progress: completed = 1.0, others = episodes fraction
+  const totalProgressSum = items.reduce((sum, i) => {
+    if (i.watchlist_status === 'completato') return sum + 1.0
+    const watched = i.episodes_watched ?? 0
+    const total = i.episodes_total ?? 0
+    if (total > 0 && watched > 0) return sum + Math.min(1.0, watched / total)
+    return sum
+  }, 0)
+
   return {
     totale,
     completati,
@@ -110,6 +120,6 @@ function refreshStats(items) {
     da_guardare,
     in_pausa,
     abbandonati,
-    completamento_globale: totale > 0 ? Math.round((completati / totale) * 100) : 0,
+    completamento_globale: totale > 0 ? Math.round((totalProgressSum / totale) * 100) : 0,
   }
 }

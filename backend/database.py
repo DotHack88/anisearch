@@ -495,9 +495,20 @@ class AnimeDatabase:
     async def get_watchlist(self, session_id: str, status_filter: Optional[str] = None) -> List[dict]:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
+            # Join Watchlist → Anime (required), then outer-join WatchProgress and Episode
+            # to pick up the actual last-watched episode number as a fallback
             stmt = (
-                select(Anime, Watchlist)
+                select(
+                    Anime,
+                    Watchlist,
+                    Episode.episode.label("wp_episode_number"),  # type: ignore
+                )
                 .join(Watchlist, Watchlist.anime_id == Anime.id)  # type: ignore
+                .outerjoin(
+                    WatchProgress,
+                    (WatchProgress.anime_id == Anime.id) & (WatchProgress.session_id == session_id),  # type: ignore
+                )
+                .outerjoin(Episode, Episode.id == WatchProgress.episode_id)  # type: ignore
                 .where(Watchlist.session_id == session_id)  # type: ignore
             )
             if status_filter:
@@ -510,13 +521,23 @@ class AnimeDatabase:
             for row in rows:
                 anime_dict = _row_to_dict(row[0])
                 wl: Watchlist = row[1]
+                wp_episode_number = row[2]  # actual last-watched episode number (may be None)
+
+                # Use manually-set count first; fall back to actual watch progress episode number
                 eps_watched = wl.episodes_watched or 0
+                if eps_watched == 0 and wp_episode_number:
+                    try:
+                        eps_watched = int(wp_episode_number)
+                    except (TypeError, ValueError):
+                        pass
+
                 eps_total = wl.episodes_total
                 progress = 0
-                if eps_total and eps_total > 0:
+                if eps_total and eps_total > 0 and eps_watched > 0:
                     progress = round((eps_watched / eps_total) * 100)
                     if progress > 100:
                         progress = 100
+
                 anime_dict["watchlist_status"] = wl.status
                 anime_dict["episodes_watched"] = eps_watched
                 anime_dict["episodes_total"] = eps_total
@@ -528,20 +549,64 @@ class AnimeDatabase:
                 watchlist_items.append(anime_dict)
             return watchlist_items
 
+
     async def get_watchlist_stats(self, session_id: str) -> dict:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
-            result = await session.exec(
-                select(Watchlist).where(Watchlist.session_id == session_id)
+            # Fetch watchlist with actual episode progress (same join as get_watchlist)
+            stmt = (
+                select(
+                    Watchlist,
+                    Episode.episode.label("wp_episode_number"),  # type: ignore
+                )
+                .outerjoin(
+                    WatchProgress,
+                    (WatchProgress.anime_id == Watchlist.anime_id) & (WatchProgress.session_id == session_id),  # type: ignore
+                )
+                .outerjoin(Episode, Episode.id == WatchProgress.episode_id)  # type: ignore
+                .where(Watchlist.session_id == session_id)  # type: ignore
             )
-            items = result.all()
-            totale = len(items)
-            completati = sum(1 for i in items if i.status == "completato")
-            in_visione = sum(1 for i in items if i.status == "in_visione")
-            da_guardare = sum(1 for i in items if i.status == "da_guardare")
-            in_pausa = sum(1 for i in items if i.status == "in_pausa")
-            abbandonati = sum(1 for i in items if i.status == "abbandonato")
-            global_pct = round((completati / totale) * 100) if totale > 0 else 0
+            result = await session.exec(stmt)
+            rows = result.all()
+
+            totale = len(rows)
+            completati = 0
+            in_visione = 0
+            da_guardare = 0
+            in_pausa = 0
+            abbandonati = 0
+            total_progress_sum = 0.0  # sum of individual progress fractions (0.0–1.0)
+
+            for row in rows:
+                wl: Watchlist = row[0]
+                wp_ep_num = row[1]
+
+                if wl.status == "completato":
+                    completati += 1
+                elif wl.status == "in_visione":
+                    in_visione += 1
+                elif wl.status == "da_guardare":
+                    da_guardare += 1
+                elif wl.status == "in_pausa":
+                    in_pausa += 1
+                elif wl.status == "abbandonato":
+                    abbandonati += 1
+
+                # Compute fraction for global progress
+                if wl.status == "completato":
+                    total_progress_sum += 1.0
+                else:
+                    eps_watched = wl.episodes_watched or 0
+                    if eps_watched == 0 and wp_ep_num:
+                        try:
+                            eps_watched = int(wp_ep_num)
+                        except (TypeError, ValueError):
+                            pass
+                    eps_total = wl.episodes_total
+                    if eps_total and eps_total > 0 and eps_watched > 0:
+                        total_progress_sum += min(1.0, eps_watched / eps_total)
+
+            global_pct = round((total_progress_sum / totale) * 100) if totale > 0 else 0
             return {
                 "totale": totale,
                 "completati": completati,
@@ -551,3 +616,4 @@ class AnimeDatabase:
                 "abbandonati": abbandonati,
                 "completamento_globale": global_pct,
             }
+

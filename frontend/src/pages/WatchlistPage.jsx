@@ -296,13 +296,11 @@ export default function WatchlistPage() {
           background: 'radial-gradient(ellipse 60% 80% at 50% 0%, rgba(139,92,246,0.12), transparent)'
         }} />
         <div className="max-w-7xl mx-auto relative">
-          <h1 className="text-5xl sm:text-6xl font-black tracking-wide mb-2"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>
-            <span style={{ background: 'linear-gradient(135deg, #c084fc, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              LA MIA LISTA
-            </span>
+          <h1 className="text-5xl sm:text-6xl font-light tracking-widest mb-2"
+            style={{ fontFamily: "'Outfit', sans-serif", color: '#ffffff', letterSpacing: '0.12em' }}>
+            LA MIA LISTA
           </h1>
-          <p className="text-sm" style={{ color: 'var(--color-text-dim)', fontFamily: 'var(--font-body)' }}>La tua libreria personale di anime.</p>
+          <p className="text-sm" style={{ color: 'var(--color-text-dim)', fontFamily: "'Inter', sans-serif" }}>La tua libreria personale di anime.</p>
         </div>
       </div>
 
