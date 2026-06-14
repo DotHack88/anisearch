@@ -399,10 +399,17 @@ async def anime_detail(anime_id: str):
 async def episode_video(request: Request, episode_id: str):
     """Get the direct video stream URL for an episode."""
     try:
-        result = await asyncio.to_thread(scraper.get_episode_video_url, episode_id)
+        # Enforce an absolute timeout of 20 seconds so we never hang indefinitely and cause 502s!
+        result = await asyncio.wait_for(
+            asyncio.to_thread(scraper.get_episode_video_url, episode_id),
+            timeout=20.0
+        )
         if result.get("video_url"):
             return result
         raise HTTPException(404, result.get("error", "Video non trovato"))
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout video {episode_id} (oltre 20s)")
+        raise HTTPException(504, "Il server di origine ha impiegato troppo tempo a rispondere (Timeout)")
     except HTTPException:
         raise
     except Exception as e:

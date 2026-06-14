@@ -33,7 +33,7 @@ HEADERS = {
 
 
 class AnimeWorldScraper:
-    def __init__(self, delay: float = 0.3, timeout: int = 15):
+    def __init__(self, delay: float = 0.3, timeout: tuple = (5, 15)):
         self.delay = delay
         self.timeout = timeout
         self.session = requests.Session()
