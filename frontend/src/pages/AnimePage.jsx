@@ -120,13 +120,7 @@ export default function AnimePage() {
                   </Link>
                 )
               )}
-              {anime?.url && (
-                <a href={anime.url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border hover:border-accent/50 text-text rounded-xl font-body text-sm transition-colors">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                  AnimeWorld
-                </a>
-              )}
+
               {anime && (
                 <button onClick={() => toggleFavorite({ id, title: anime.title, image: img, type: anime.type })}
                   className={`p-2.5 rounded-xl border transition-colors ${fav ? 'bg-accent/20 border-accent text-accent' : 'bg-surface border-border text-muted hover:border-accent/50 hover:text-accent'}`}>
@@ -147,7 +141,7 @@ export default function AnimePage() {
           </h2>
           {loading
             ? <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">{Array.from({ length: 20 }).map((_, i) => <Sk key={i} className="aspect-square rounded-xl" />)}</div>
-            : <EpisodeList episodes={anime?.episodes} animeId={id} animeTitle={anime?.title} animeImage={img} />
+            : <EpisodeList episodes={anime?.episodes} animeId={id} animeTitle={anime?.title} animeImage={img} lastWatchedId={progress?.episode_id} />
           }
           {error && <p className="text-sm text-yellow-400 font-body mt-4">⚠️ {error}</p>}
         </div>

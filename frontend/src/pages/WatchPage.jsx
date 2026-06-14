@@ -12,7 +12,7 @@ export default function WatchPage() {
   const [episodes, setEpisodes] = useState(location.state?.episodes || [])
   const [animeTitle, setAnimeTitle] = useState(location.state?.animeTitle || '')
   const [animeImage, setAnimeImage] = useState(location.state?.animeImage || '')
-  const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-3 gap-1 overflow-y-auto flex-1 pr-1' : 'grid grid-cols-4 gap-2 overflow-y-auto flex-1 pr-1';
+  const episodeGridClass = episodes.length <= 6 ? 'grid grid-cols-4 gap-1.5 overflow-y-auto flex-1 pr-1' : 'grid grid-cols-6 gap-1.5 overflow-y-auto flex-1 pr-1';
 
   // Stream data
   const [videoUrl, setVideoUrl] = useState('')
@@ -534,7 +534,7 @@ export default function WatchPage() {
                 <button
                   key={ep.id || i}
                   onClick={() => handleNavigateEp(ep)}
-                  className={`aspect-square rounded-lg flex items-center justify-center text-xs font-bold transition-all border font-body
+                  className={`aspect-square rounded-lg flex items-center justify-center text-[11px] font-bold transition-all border font-body
                     ${isActive
                       ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20 scale-105'
                       : 'bg-card border-border text-text-dim hover:border-accent hover:text-text'

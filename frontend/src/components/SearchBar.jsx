@@ -20,7 +20,7 @@ const SkeletonItem = () => (
 
 export default function SearchBar({ large = false, autoFocus = false }) {
   const navigate = useNavigate()
-  const { query, setQuery, results, loading, error, isOpen, setIsOpen, clearSearch, searchByImage } = useSearch()
+  const { query, setQuery, results, loading, error, isOpen, setIsOpen, clearSearch, searchByImage, imageResult } = useSearch()
   const [activeIdx, setActiveIdx] = useState(-1)
   const inputRef = useRef(null)
   const dropRef = useRef(null)
@@ -96,7 +96,7 @@ export default function SearchBar({ large = false, autoFocus = false }) {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
           )}
-          <button onClick={() => fileInputRef.current.click()} title="Ricerca per Immagine" className="text-muted hover:text-accent p-1.5 transition-colors">
+          <button onClick={() => fileInputRef.current.click()} title="Ricerca per Immagine (Screenshot, Loghi, Fanart)" className="text-muted hover:text-accent p-1.5 transition-colors">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
               <circle cx="12" cy="13" r="4"></circle>
@@ -106,7 +106,7 @@ export default function SearchBar({ large = false, autoFocus = false }) {
       </div>
 
       {/* Dropdown */}
-      {isOpen && (query.length >= 2 || loading || error) && (
+      {isOpen && (query.length >= 2 || loading || error || imageResult) && (
         <div ref={dropRef} className="absolute top-full mt-2 w-full bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden animate-slide-down">
           {error ? (
             <p className="px-4 py-3 text-sm text-red-400 font-body">{error}</p>
@@ -117,28 +117,48 @@ export default function SearchBar({ large = false, autoFocus = false }) {
               <SkeletonItem />
               <SkeletonItem />
             </ul>
-          ) : results.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-muted font-body text-center">Nessun risultato per "<span className="text-text">{query}</span>"</p>
           ) : (
-            <ul className="max-h-80 overflow-y-auto">
-              {results.map((anime, i) => (
-                <li key={anime.id}
-                  onClick={() => select(anime)}
-                  onMouseEnter={() => setActiveIdx(i)}
-                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-border/50 last:border-0 transition-colors ${i === activeIdx ? 'bg-accent/10' : 'hover:bg-surface'}`}
-                >
-                  <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-surface">
-                    <img src={anime.image} alt={anime.title} loading="lazy" className="w-full h-full object-cover"
-                      onError={e => { e.target.style.display = 'none' }} />
+            <>
+              {imageResult && (
+                <div className="px-3 py-3 bg-accent/10 border-b border-border flex items-center gap-3">
+                  <div className="w-20 h-12 flex-shrink-0 rounded bg-black overflow-hidden relative">
+                    {imageResult.video ? (
+                      <video src={imageResult.video} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={imageResult.image} alt={imageResult.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text truncate font-body">{anime.title}</p>
-                    <div className="mt-0.5"><TypeBadge type={anime.type} /></div>
+                    <p className="text-[11px] text-accent font-semibold mb-0.5 uppercase tracking-wider">Match: {Math.round(imageResult.similarity * 100)}% ({imageResult.source})</p>
+                    <p className="text-sm font-medium text-text truncate font-body">{imageResult.title}</p>
+                    {imageResult.episode && <p className="text-xs text-muted font-body">Episodio {imageResult.episode}</p>}
                   </div>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted flex-shrink-0"><path d="m9 18 6-6-6-6" /></svg>
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+              {results.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-muted font-body text-center">Nessun risultato per "<span className="text-text">{query}</span>"</p>
+              ) : (
+                <ul className="max-h-80 overflow-y-auto">
+                  {results.map((anime, i) => (
+                    <li key={anime.id}
+                      onClick={() => select(anime)}
+                      onMouseEnter={() => setActiveIdx(i)}
+                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-border/50 last:border-0 transition-colors ${i === activeIdx ? 'bg-accent/10' : 'hover:bg-surface'}`}
+                    >
+                      <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-surface">
+                        <img src={anime.image} alt={anime.title} loading="lazy" className="w-full h-full object-cover"
+                          onError={e => { e.target.style.display = 'none' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-text truncate font-body">{anime.title}</p>
+                        <div className="mt-0.5"><TypeBadge type={anime.type} /></div>
+                      </div>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted flex-shrink-0"><path d="m9 18 6-6-6-6" /></svg>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
           {results.length > 0 && !loading && !error && (
             <div className="px-3 py-2 border-t border-border bg-surface/50 text-center">
