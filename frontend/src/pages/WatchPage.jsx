@@ -22,6 +22,7 @@ export default function WatchPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [related, setRelated] = useState([])
+  const [tmdbEpisodeTitle, setTmdbEpisodeTitle] = useState('')
   const [lightsOff, setLightsOff] = useState(false)
   const [ambilightActive, setAmbilightActive] = useState(true)
   const [cinemaMode, setCinemaMode] = useState(() => localStorage.getItem('cinema_mode') === 'true')
@@ -287,6 +288,70 @@ export default function WatchPage() {
 
   const currentEpNumber = episodes[currentIdx]?.number || ''
 
+  // Fetch episode title from TMDB
+  useEffect(() => {
+    let active = true;
+    setTmdbEpisodeTitle('');
+
+    async function fetchTmdbTitle() {
+      if (!animeTitle || !currentEpNumber) return;
+      try {
+        const apiKey = '0e2de47a240a35e71579d11490d53484';
+        
+        let targetSeason = 1;
+        let epNum = parseInt(currentEpNumber);
+        if (isNaN(epNum)) return;
+
+        const seasonMatch = animeTitle.match(/(\d+)(?:st|nd|rd|th)?\s*season/i) || animeTitle.match(/\s+(\d+)$/);
+        if (seasonMatch) {
+            targetSeason = parseInt(seasonMatch[1]);
+        }
+        
+        const cleanTitle = animeTitle
+          .replace(/\s*\(.*?\)/g, '')
+          .replace(/\s+(?:the\s+)?movie\b.*/i, '')
+          .replace(/\s+(?:st|nd|rd|th)?\s*season\b.*/i, '')
+          .replace(/\s+ova\b.*/i, '')
+          .replace(/\s+ona\b.*/i, '')
+          .replace(/\s+\d+$/, '')
+          .trim();
+
+        const searchUrl = `https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&language=it-IT&query=${encodeURIComponent(cleanTitle)}`;
+        const searchRes = await fetch(searchUrl);
+        const searchData = await searchRes.json();
+        
+        if (active && searchData.results && searchData.results.length > 0) {
+          // Find the best match: prioritize original_language = 'ja' and genre_ids includes 16 (Animation)
+          let candidates = searchData.results.filter(r => r.original_language === 'ja' && r.genre_ids && r.genre_ids.includes(16));
+          
+          if (candidates.length === 0) {
+            candidates = searchData.results.filter(r => r.genre_ids && r.genre_ids.includes(16));
+          }
+          
+          let bestMatch = candidates.length > 0 ? 
+            candidates.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))[0] : 
+            searchData.results[0];
+
+          const tvId = bestMatch.id;
+          const epUrl = `https://api.themoviedb.org/3/tv/${tvId}/season/${targetSeason}/episode/${epNum}?api_key=${apiKey}&language=it-IT`;
+          const epRes = await fetch(epUrl);
+          if (epRes.ok) {
+            const epData = await epRes.json();
+            if (active && epData && epData.name && !epData.name.toLowerCase().startsWith("episodio ")) {
+              setTmdbEpisodeTitle(epData.name);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching TMDB title:", err);
+      }
+    }
+    
+    fetchTmdbTitle();
+    
+    return () => { active = false; };
+  }, [animeTitle, currentEpNumber]);
+
   const isEpDownloaded = isDownloaded(episodeId)
   const isEpDownloading = isDownloading(episodeId)
   const epProgress = getProgress(episodeId)
@@ -337,7 +402,9 @@ export default function WatchPage() {
           {animeTitle || 'Anime'}
         </Link>
         <span>/</span>
-        <span className="text-accent font-semibold">Episodio {currentEpNumber}</span>
+        <span className="text-accent font-semibold truncate max-w-[200px] sm:max-w-none">
+          Episodio {currentEpNumber}{tmdbEpisodeTitle ? ` - ${tmdbEpisodeTitle}` : ''}
+        </span>
       </div>
 
       {/* Main Video Section */}
@@ -432,7 +499,9 @@ export default function WatchPage() {
           <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface/40 p-5 rounded-2xl border border-border/50 backdrop-blur-sm transition-all duration-500 ${lightsOff ? 'relative z-50 shadow-2xl shadow-amber-500/5' : 'relative z-10'}`}>
             <div>
               <h2 className="text-xl font-bold font-body text-text">{animeTitle}</h2>
-              <p className="text-sm text-text-dim font-body mt-1">Episodio {currentEpNumber}</p>
+              <p className="text-sm text-text-dim font-body mt-1">
+                Episodio {currentEpNumber}{tmdbEpisodeTitle ? ` - ${tmdbEpisodeTitle}` : ''}
+              </p>
             </div>
 
             {/* Quick Next/Prev/Download controls */}
