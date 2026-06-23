@@ -55,7 +55,10 @@ export const getEpisodeVideo = async (episodeId: string) => (await api.get<{ vid
 export const saveWatchProgress = async (animeId: string, episodeId: string) => (await api.post(`/watch/${animeId}`, null, { params: { episode_id: episodeId } })).data;
 export const deleteWatchProgress = async (animeId: string, episodeId: string) => (await api.delete(`/watch/${animeId}`, { params: { episode_id: episodeId } })).data
 export const getWatchProgress = async (animeId: string) => (await api.get(`/watch/${animeId}`)).data
-export const getRecentWatchProgress = async () => (await api.get('/watch')).data
+export const getRecentWatchProgress = async () => {
+  const data = (await api.get('/watch')).data
+  return Array.isArray(data) ? data : []
+}
 
 export const getFavorites = async () => (await api.get<Anime[]>('/favorites')).data
 export const addFavorite = async (animeId: string) => (await api.post(`/favorites/${animeId}`)).data
@@ -72,7 +75,10 @@ export interface WatchlistItem extends Anime {
   completed_at: string | null;
 }
 
-export const getWatchlist = async (status?: string) => (await api.get<WatchlistItem[]>('/watchlist', { params: status ? { status } : {} })).data
+export const getWatchlist = async (status?: string) => {
+  const data = (await api.get<WatchlistItem[]>('/watchlist', { params: status ? { status } : {} })).data
+  return Array.isArray(data) ? data : []
+}
 export const getWatchlistStats = async () => (await api.get('/watchlist/stats')).data
 export const addWatchlist = async (animeId: string, status: string = 'da_guardare', episodesWatched?: number, episodesTotal?: number, notes?: string) =>
   (await api.post(`/watchlist/${animeId}`, null, { params: { status, ...(episodesWatched != null && { episodes_watched: episodesWatched }), ...(episodesTotal != null && { episodes_total: episodesTotal }), ...(notes != null && { notes }) } })).data
