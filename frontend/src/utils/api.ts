@@ -1,9 +1,16 @@
 import axios from 'axios'
 import { getSessionId } from './session'
 
-// In sviluppo (npm run dev): usa VITE_API_BASE_URL dal .env.local
-// In produzione (Vercel): usa VITE_API_BASE_URL dal .env.production o fallback Render
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://anisearch-8jph.onrender.com')
+// Runtime API base detection:
+// - Render (anisearch-8jph.onrender.com): frontend e backend sullo stesso dominio → usa /api (Nginx proxy)
+// - Vercel (anisearch-eta.vercel.app): frontend remoto → usa l'URL Render diretto
+// - Locale (localhost): usa la variabile d'ambiente o fallback al backend locale
+const _hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (
+  _hostname === 'anisearch-8jph.onrender.com' ? '/api' :
+  import.meta.env.DEV ? 'http://localhost:8000' :
+  'https://anisearch-8jph.onrender.com'
+)
 
 const api = axios.create({
   baseURL: API_BASE,
