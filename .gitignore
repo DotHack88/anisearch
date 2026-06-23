@@ -4,7 +4,11 @@ venv/
 __pycache__/
 *.pyc
 .env
+.env.local
+.env.production
+.env.*.local
 .DS_Store
 dist/
 build/
 *.db
+*.sqlite

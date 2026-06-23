@@ -9,9 +9,17 @@ import json
 import asyncio
 import logging
 import warnings
+import re
 from pathlib import Path
 from typing import Any
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+
+# Load environment variables from backend/ and root directories
+env_dir = Path(__file__).resolve().parent
+load_dotenv(env_dir / ".env")
+load_dotenv(env_dir.parent / ".env")
 
 from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, Cookie, Response, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -198,6 +206,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Registra il router TMDB (modulo separato — evita cache bytecode su Windows)
+from backend.tmdb import router as tmdb_router  # noqa: E402
+app.include_router(tmdb_router)
+
 
 # --- Auth helper rimosso in favore di verify_admin_token ---
 
@@ -292,10 +304,30 @@ def get_or_create_session(
     response: Response,
     anisearch_session: str | None = Cookie(default=None)
 ) -> str:
+    """
+    Get or create a session ID.
+    Validates format as UUID v4 to prevent spoofing.
+    """
+    from uuid import UUID
+
+    def validate_session_id(session_id: str) -> bool:
+        """Validate that session_id is a safe format (alphanumeric and dashes, 5-64 chars)."""
+        if not session_id:
+            return False
+        return bool(re.match(r'^[a-zA-Z0-9\-]{5,64}$', session_id))
+
     # Priorità: header X-Session-Id (usato dal frontend cross-site) > cookie
     header_session = request.headers.get("X-Session-Id")
     if header_session:
-        return header_session
+        if validate_session_id(header_session):
+            return header_session
+        else:
+            logger.warning(f"Invalid X-Session-Id format: {header_session}")
+            raise HTTPException(400, "Invalid session ID format")
+
+    if anisearch_session and validate_session_id(anisearch_session):
+        return anisearch_session
+
     if not anisearch_session:
         anisearch_session = str(uuid.uuid4())
         response.set_cookie(
@@ -551,6 +583,9 @@ async def filters():
         "years": await db.get_all_years(),
         "statuses": await db.get_all_statuses(),
     }
+
+
+
 
 
 @app.post("/cache/refresh", dependencies=[Depends(verify_admin_token)])

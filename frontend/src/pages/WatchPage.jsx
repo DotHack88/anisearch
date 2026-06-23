@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
-import { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress, searchAnime } from '../utils/api'
+import api, { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress, searchAnime } from '../utils/api'
 import { useDownloads } from '../hooks/useDownloads.js'
 import AnimeCard from '../components/AnimeCard.jsx'
 
@@ -107,6 +107,11 @@ export default function WatchPage() {
   useEffect(() => {
     let active = true
     let localUrl = ''
+    const timeoutHandle = setTimeout(() => {
+      if (active && loading) {
+        setError("Il server impiega troppo tempo a rispondere. Verifica la connessione.")
+      }
+    }, 8000)  // Timeout dopo 8 secondi
 
     async function loadVideo() {
       setLoading(true)
@@ -143,9 +148,11 @@ export default function WatchPage() {
         }
       } catch (err) {
         if (active) {
-          setError("Errore durante il recupero del flusso video. L'episodio potrebbe non essere disponibile online.")
+          setError("Errore durante il recupero del flusso video. Verifica la connessione o riprova tra poco.")
           setLoading(false)
         }
+      } finally {
+        clearTimeout(timeoutHandle)
       }
     }
 
@@ -153,6 +160,7 @@ export default function WatchPage() {
 
     return () => {
       active = false
+      clearTimeout(timeoutHandle)
       if (localUrl) {
         URL.revokeObjectURL(localUrl)
       }
@@ -288,7 +296,7 @@ export default function WatchPage() {
 
   const currentEpNumber = episodes[currentIdx]?.number || ''
 
-  // Fetch episode title from TMDB
+  // Fetch episode title from TMDB (via backend proxy)
   useEffect(() => {
     let active = true;
     setTmdbEpisodeTitle('');
@@ -296,59 +304,20 @@ export default function WatchPage() {
     async function fetchTmdbTitle() {
       if (!animeTitle || !currentEpNumber) return;
       try {
-        const apiKey = '0e2de47a240a35e71579d11490d53484';
-        
-        let targetSeason = 1;
-        let epNum = parseInt(currentEpNumber);
-        if (isNaN(epNum)) return;
-
-        const seasonMatch = animeTitle.match(/(\d+)(?:st|nd|rd|th)?\s*season/i) || animeTitle.match(/\s+(\d+)$/);
-        if (seasonMatch) {
-            targetSeason = parseInt(seasonMatch[1]);
-        }
-        
-        const cleanTitle = animeTitle
-          .replace(/\s*\(.*?\)/g, '')
-          .replace(/\s+(?:the\s+)?movie\b.*/i, '')
-          .replace(/\s+(?:st|nd|rd|th)?\s*season\b.*/i, '')
-          .replace(/\s+ova\b.*/i, '')
-          .replace(/\s+ona\b.*/i, '')
-          .replace(/\s+\d+$/, '')
-          .trim();
-
-        const searchUrl = `https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&language=it-IT&query=${encodeURIComponent(cleanTitle)}`;
-        const searchRes = await fetch(searchUrl);
-        const searchData = await searchRes.json();
-        
-        if (active && searchData.results && searchData.results.length > 0) {
-          // Find the best match: prioritize original_language = 'ja' and genre_ids includes 16 (Animation)
-          let candidates = searchData.results.filter(r => r.original_language === 'ja' && r.genre_ids && r.genre_ids.includes(16));
-          
-          if (candidates.length === 0) {
-            candidates = searchData.results.filter(r => r.genre_ids && r.genre_ids.includes(16));
-          }
-          
-          let bestMatch = candidates.length > 0 ? 
-            candidates.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))[0] : 
-            searchData.results[0];
-
-          const tvId = bestMatch.id;
-          const epUrl = `https://api.themoviedb.org/3/tv/${tvId}/season/${targetSeason}/episode/${epNum}?api_key=${apiKey}&language=it-IT`;
-          const epRes = await fetch(epUrl);
-          if (epRes.ok) {
-            const epData = await epRes.json();
-            if (active && epData && epData.name && !epData.name.toLowerCase().startsWith("episodio ")) {
-              setTmdbEpisodeTitle(epData.name);
-            }
-          }
+        // Chiama il proxy backend invece di TMDB direttamente
+        const res = await api.get(`/tmdb/episode/${encodeURIComponent(animeTitle)}/${currentEpNumber}`)
+        const epData = res.data  // risposta Axios: .data contiene il JSON
+        if (active && epData.name) {
+          setTmdbEpisodeTitle(epData.name)
         }
       } catch (err) {
-        console.error("Error fetching TMDB title:", err);
+        // Errore silenzioso — il titolo TMDB è opzionale
+        console.warn('TMDB episode title non disponibile:', err?.response?.data || err.message)
       }
     }
-    
+
     fetchTmdbTitle();
-    
+
     return () => { active = false; };
   }, [animeTitle, currentEpNumber]);
 

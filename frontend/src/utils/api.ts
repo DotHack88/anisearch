@@ -1,9 +1,9 @@
 import axios from 'axios'
 import { getSessionId } from './session'
 
-// In sviluppo (npm run dev): usa il backend locale in esecuzione sulla porta 8000
-// In produzione (Vercel): usa VITE_API_URL o il fallback su Render
-const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : (import.meta.env.VITE_API_URL || 'https://anisearch-8jph.onrender.com')
+// In sviluppo (npm run dev): usa VITE_API_BASE_URL dal .env.local
+// In produzione (Vercel): usa VITE_API_BASE_URL dal .env.production o fallback Render
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://anisearch-8jph.onrender.com')
 
 const api = axios.create({
   baseURL: API_BASE,
