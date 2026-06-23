@@ -25,6 +25,11 @@ export default function WatchPage() {
   const [tmdbEpisodeTitle, setTmdbEpisodeTitle] = useState('')
   const [showSkipIntro, setShowSkipIntro] = useState(false)
   const [showSkipOutro, setShowSkipOutro] = useState(false)
+  const [autoplayCount, setAutoplayCount] = useState(null)
+  const [currentSpeed, setCurrentSpeed] = useState(1.0)
+  const [showSpeedBadge, setShowSpeedBadge] = useState(false)
+  const autoplayTimerRef = useRef(null)
+  const speedTimeoutRef = useRef(null)
   const [lightsOff, setLightsOff] = useState(false)
   const [ambilightActive, setAmbilightActive] = useState(true)
   const [cinemaMode, setCinemaMode] = useState(() => localStorage.getItem('cinema_mode') === 'true')
@@ -297,6 +302,122 @@ export default function WatchPage() {
     }
   }
 
+  // Autoplay countdown effects & cleanup
+  useEffect(() => {
+    setAutoplayCount(null)
+    if (autoplayTimerRef.current) {
+      clearTimeout(autoplayTimerRef.current)
+      autoplayTimerRef.current = null
+    }
+  }, [episodeId])
+
+  useEffect(() => {
+    if (autoplayCount === null) return
+    if (autoplayCount === 0) {
+      if (nextEp) {
+        handleNavigateEp(nextEp)
+      }
+      setAutoplayCount(null)
+      return
+    }
+
+    autoplayTimerRef.current = setTimeout(() => {
+      setAutoplayCount(c => c - 1)
+    }, 1000)
+
+    return () => clearTimeout(autoplayTimerRef.current)
+  }, [autoplayCount, nextEp])
+
+  // Playback speed helper
+  const showSpeedOverlay = (speed) => {
+    setCurrentSpeed(speed)
+    setShowSpeedBadge(true)
+    if (speedTimeoutRef.current) clearTimeout(speedTimeoutRef.current)
+    speedTimeoutRef.current = setTimeout(() => {
+      setShowSpeedBadge(false)
+    }, 2000)
+  }
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (document.activeElement && (
+        document.activeElement.tagName === 'INPUT' || 
+        document.activeElement.tagName === 'TEXTAREA'
+      )) {
+        return
+      }
+
+      const video = videoRef.current
+      if (!video) return
+
+      switch (e.key.toLowerCase()) {
+        case ' ':
+          e.preventDefault()
+          if (video.paused) {
+            video.play().catch(() => {})
+          } else {
+            video.pause()
+          }
+          break
+        case 'arrowright':
+          e.preventDefault()
+          video.currentTime = Math.min(video.duration || 0, video.currentTime + 10)
+          break
+        case 'arrowleft':
+          e.preventDefault()
+          video.currentTime = Math.max(0, video.currentTime - 10)
+          break
+        case 'arrowup':
+          e.preventDefault()
+          video.volume = Math.min(1, video.volume + 0.1)
+          break
+        case 'arrowdown':
+          e.preventDefault()
+          video.volume = Math.max(0, video.volume - 0.1)
+          break
+        case 'f':
+          e.preventDefault()
+          if (!document.fullscreenElement) {
+            const container = document.querySelector('.video-player-container')
+            if (container) {
+              container.requestFullscreen().catch(() => {
+                video.requestFullscreen().catch(() => {})
+              })
+            } else {
+              video.requestFullscreen().catch(() => {})
+            }
+          } else {
+            document.exitFullscreen().catch(() => {})
+          }
+          break
+        case 'm':
+          e.preventDefault()
+          video.muted = !video.muted
+          break
+        case 's':
+          e.preventDefault()
+          const currentSpeedVal = video.playbackRate
+          let newSpeed = 1.0
+          if (currentSpeedVal === 1.0) newSpeed = 1.25
+          else if (currentSpeedVal === 1.25) newSpeed = 1.5
+          else if (currentSpeedVal === 1.5) newSpeed = 2.0
+          else newSpeed = 1.0
+          video.playbackRate = newSpeed
+          showSpeedOverlay(newSpeed)
+          break
+        default:
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (speedTimeoutRef.current) clearTimeout(speedTimeoutRef.current)
+    }
+  }, [nextEp, animeId, episodes, animeTitle, animeImage])
+
   const handleClearProgress = async () => {
     // Remove from localStorage if stored
     localStorage.removeItem(`watch_${animeId}_${episodeId}`)
@@ -473,8 +594,14 @@ export default function WatchPage() {
                     controls
                     autoPlay
                     playsInline
+                    preload="auto"
                     crossOrigin="anonymous"
                     className="w-full h-full object-contain"
+                    onEnded={() => {
+                      if (nextEp) {
+                        setAutoplayCount(5)
+                      }
+                    }}
                   />
                   {showSkipIntro && (
                     <button
@@ -509,6 +636,46 @@ export default function WatchPage() {
                         <line x1="19" y1="5" x2="19" y2="19" />
                       </svg>
                     </button>
+                  )}
+
+                  {/* Playback Speed Badge Overlay */}
+                  {showSpeedBadge && (
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/75 px-4 py-2 rounded-xl text-white font-body font-bold text-sm pointer-events-none z-30 flex items-center gap-2 border border-white/10">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="13 19 22 12 13 5 13 19" fill="currentColor" />
+                        <polygon points="2 19 11 12 2 5 2 19" fill="currentColor" />
+                      </svg>
+                      {currentSpeed}x
+                    </div>
+                  )}
+
+                  {/* Autoplay Countdown Overlay */}
+                  {autoplayCount !== null && (
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-30 flex flex-col items-center justify-center text-center p-6">
+                      <p className="text-muted text-xs uppercase tracking-widest font-semibold mb-2">Fine dell'episodio</p>
+                      <h3 className="text-xl font-bold font-display text-text mb-6">
+                        Il prossimo episodio inizierà tra <span className="text-accent text-2xl font-black">{autoplayCount}</span> secondi
+                      </h3>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setAutoplayCount(null)}
+                          className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white rounded-xl font-body font-semibold text-xs transition-all hover:scale-105"
+                        >
+                          Annulla
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (nextEp) {
+                              handleNavigateEp(nextEp)
+                            }
+                            setAutoplayCount(null)
+                          }}
+                          className="px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-semibold text-xs transition-all shadow-[0_0_20px_rgba(251,56,75,0.4)] hover:scale-105"
+                        >
+                          Riproduci Ora
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}
