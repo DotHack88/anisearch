@@ -200,38 +200,18 @@ if _has_slowapi:
 else:
     limiter = None
 
-# CORS: usa allow_origins=["*"] come base, poi un middleware custom
-# aggiunge Access-Control-Allow-Origin con l'origine esatta della richiesta
-# (necessario per allow_credentials=True che non accetta '*' diretto).
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request as StarletteRequest
-from starlette.responses import Response as StarletteResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-class CORSEchoMiddleware(BaseHTTPMiddleware):
-    """Middleware CORS che echeggia sempre l'Origin della richiesta.
-    Garantisce il funzionamento cross-origin indipendentemente da ALLOWED_ORIGINS."""
-    async def dispatch(self, request: StarletteRequest, call_next):
-        origin = request.headers.get("origin", "")
-        # Gestione preflight OPTIONS — risposta immediata senza toccare le route
-        if request.method == "OPTIONS":
-            return StarletteResponse(
-                status_code=200,
-                headers={
-                    "Access-Control-Allow-Origin": origin or "*",
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Token, X-Session-Id, Cookie",
-                    "Access-Control-Max-Age": "600",
-                }
-            )
-        response = await call_next(request)
-        if origin:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Vary"] = "Origin"
-        return response
-
-app.add_middleware(CORSEchoMiddleware)
+# CORS: allow_origins=["*"] — funziona con qualsiasi dominio frontend.
+# Le sessioni usano X-Session-Id header (non cookie), quindi
+# allow_credentials=False è corretto e sicuro.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Registra il router TMDB (modulo separato — evita cache bytecode su Windows)
 from backend.tmdb import router as tmdb_router  # noqa: E402
