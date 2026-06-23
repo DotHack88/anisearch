@@ -39,7 +39,7 @@ async def get_tmdb_episode(title: str, ep_number: int):
     """Proxy per TMDB API — API key tenuta nel backend, mai esposta al frontend."""
     import httpx
 
-    api_key = os.getenv("TMDB_API_KEY", "")
+    api_key = os.getenv("TMDB_API_KEY", "") or "0e2de47a240a35e71579d11490d53484"
     if not api_key:
         raise HTTPException(500, "TMDB_API_KEY non configurato nel backend")
 
