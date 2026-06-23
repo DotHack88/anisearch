@@ -23,6 +23,8 @@ export default function WatchPage() {
   const [error, setError] = useState(null)
   const [related, setRelated] = useState([])
   const [tmdbEpisodeTitle, setTmdbEpisodeTitle] = useState('')
+  const [showSkipIntro, setShowSkipIntro] = useState(false)
+  const [showSkipOutro, setShowSkipOutro] = useState(false)
   const [lightsOff, setLightsOff] = useState(false)
   const [ambilightActive, setAmbilightActive] = useState(true)
   const [cinemaMode, setCinemaMode] = useState(() => localStorage.getItem('cinema_mode') === 'true')
@@ -119,6 +121,8 @@ export default function WatchPage() {
       setVideoUrl('')
       setOfflineUrl('')
       setIsOfflinePlay(false)
+      setShowSkipIntro(false)
+      setShowSkipOutro(false)
 
       try {
         // 1. Check if we have it offline in IndexedDB
@@ -201,10 +205,24 @@ export default function WatchPage() {
 
     let lastSaveTime = 0
     const handleTimeUpdate = () => {
+      const time = videoEl.currentTime
+      const duration = videoEl.duration
       const now = Date.now()
       if (now - lastSaveTime > 1500) {
-        localStorage.setItem(storageKey, videoEl.currentTime)
+        localStorage.setItem(storageKey, time)
         lastSaveTime = now
+      }
+
+      // Check Skip Intro visibility (between 10s and 150s)
+      const shouldShowIntro = time >= 10 && time <= 150
+      setShowSkipIntro(prev => prev !== shouldShowIntro ? shouldShowIntro : prev)
+
+      // Check Skip Outro visibility (last 150s of video, if total duration > 5 min)
+      if (duration && duration > 300) {
+        const shouldShowOutro = (duration - time) <= 150 && (duration - time) >= 5
+        setShowSkipOutro(prev => prev !== shouldShowOutro ? shouldShowOutro : prev)
+      } else {
+        setShowSkipOutro(false)
       }
     }
 
@@ -448,15 +466,51 @@ export default function WatchPage() {
                   </a>
                 </div>
               ) : (
-                <video
-                  ref={videoRef}
-                  src={isOfflinePlay ? offlineUrl : videoUrl}
-                  controls
-                  autoPlay
-                  playsInline
-                  crossOrigin="anonymous"
-                  className="w-full h-full object-contain"
-                />
+                <>
+                  <video
+                    ref={videoRef}
+                    src={isOfflinePlay ? offlineUrl : videoUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    crossOrigin="anonymous"
+                    className="w-full h-full object-contain"
+                  />
+                  {showSkipIntro && (
+                    <button
+                      onClick={() => {
+                        if (videoRef.current) {
+                          videoRef.current.currentTime = 150
+                        }
+                      }}
+                      className="absolute bottom-16 left-6 z-20 px-4 py-2.5 bg-black/80 hover:bg-accent border border-white/10 hover:border-accent text-white font-body font-semibold text-xs rounded-xl shadow-lg backdrop-blur-md transition-all duration-300 flex items-center gap-2 hover:scale-105"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" />
+                        <line x1="19" y1="5" x2="19" y2="19" />
+                      </svg>
+                      Salta Sigla
+                    </button>
+                  )}
+                  {showSkipOutro && (
+                    <button
+                      onClick={() => {
+                        if (nextEp) {
+                          handleNavigateEp(nextEp)
+                        } else if (videoRef.current) {
+                          videoRef.current.currentTime = videoRef.current.duration - 2
+                        }
+                      }}
+                      className="absolute bottom-16 right-6 z-20 px-4 py-2.5 bg-accent hover:bg-accent-h text-white font-body font-bold text-xs rounded-xl shadow-[0_0_20px_rgba(251,56,75,0.4)] border border-accent-h hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                    >
+                      <span>{nextEp ? 'Prossimo Episodio' : 'Salta Finale'}</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" />
+                        <line x1="19" y1="5" x2="19" y2="19" />
+                      </svg>
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
