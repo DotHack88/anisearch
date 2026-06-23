@@ -83,7 +83,15 @@ logger = logging.getLogger(__name__)
 # --- Configuration from environment ---
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 raw_origins = os.getenv("ALLOWED_ORIGINS", "")
-allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+_env_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+# Always include production origins — merge env var origins with hardcoded defaults
+_default_origins = [
+    "https://anisearch-eta.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+]
+allowed_origins = list(dict.fromkeys(_env_origins + _default_origins))  # deduplicated, env origins first
 
 db = AnimeDatabase()
 scraper = AnimeWorldScraper()
@@ -195,12 +203,7 @@ else:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins or [
-        "https://anisearch-eta.vercel.app",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:3000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
