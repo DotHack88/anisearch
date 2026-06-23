@@ -166,6 +166,15 @@ class AnimeDatabase:
         if not rows:
             return
 
+        # Deduplicate rows by ID to avoid CardinalityViolationError in PostgreSQL
+        seen_ids = set()
+        deduped_rows = []
+        for r in rows:
+            if r["id"] not in seen_ids:
+                seen_ids.add(r["id"])
+                deduped_rows.append(r)
+        rows = deduped_rows
+
         async with engine.begin() as conn:
             dialect_name = engine.dialect.name
             if dialect_name == "postgresql":
@@ -320,6 +329,15 @@ class AnimeDatabase:
         ]
         if not rows:
             return
+
+        # Deduplicate rows by ID to avoid potential constraints / Cardinality errors in PostgreSQL
+        seen_ids = set()
+        deduped_rows = []
+        for r in rows:
+            if r["id"] not in seen_ids:
+                seen_ids.add(r["id"])
+                deduped_rows.append(r)
+        rows = deduped_rows
 
         async with engine.begin() as conn:
             dialect_name = engine.dialect.name

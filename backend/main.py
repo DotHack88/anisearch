@@ -202,7 +202,7 @@ app.add_middleware(
         "http://localhost:3000",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -240,11 +240,13 @@ def root():
 async def status():
     anime_count = await db.count()
     episode_count = await db.count_episodes()
+    from backend.database import engine
     return {
         "status": "online",
         "cached_anime": anime_count,
         "total_episodes": episode_count,
         "cache_ready": anime_count > 0,
+        "database_type": engine.url.drivername,
     }
 
 

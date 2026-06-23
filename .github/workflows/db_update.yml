@@ -1,0 +1,30 @@
+name: Periodic Database Update
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Esegue ogni 6 ore
+  workflow_dispatch: # Permette l'esecuzione manuale da GitHub Actions tab
+
+jobs:
+  update-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run database update
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python cron_update.py
