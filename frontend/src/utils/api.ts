@@ -1,16 +1,14 @@
 import axios from 'axios'
 import { getSessionId } from './session'
 
-// Runtime API base detection:
-// - Render (anisearch-8jph.onrender.com): frontend e backend sullo stesso dominio → usa /api (Nginx proxy)
-// - Vercel (anisearch-eta.vercel.app): frontend remoto → usa l'URL Render diretto
-// - Locale (localhost): usa la variabile d'ambiente o fallback al backend locale
-const _hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+// API base URL:
+// - Sviluppo locale: http://localhost:8000 (uvicorn diretto, senza prefisso /api)
+// - Produzione (Render + Vercel): https://anisearch-8jph.onrender.com/api
+//   Nginx su Render proxia /api/* → uvicorn. Senza il prefisso /api, Nginx serve la SPA React.
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (
-  _hostname === 'anisearch-8jph.onrender.com' ? '/api' :
-  import.meta.env.DEV ? 'http://localhost:8000' :
-  'https://anisearch-8jph.onrender.com'
+  import.meta.env.DEV ? 'http://localhost:8000' : 'https://anisearch-8jph.onrender.com/api'
 )
+
 
 const api = axios.create({
   baseURL: API_BASE,
