@@ -524,13 +524,13 @@ export default function WatchPage() {
           {/* Wrapper container for z-indexing over the Lights Off backdrop and mounting the Ambilight canvas */}
           <div className={`relative transition-all duration-500 rounded-2xl ${lightsOff ? 'z-50 shadow-2xl shadow-accent/10' : 'z-10'}`}>
 
-            {/* Ambilight Canvas */}
+            {/* Ambilight Canvas — only bleed on sides/bottom, NOT top (avoids red line above player) */}
             {ambilightActive && !loading && !error && (
               <canvas
                 ref={canvasRef}
                 width="16"
                 height="9"
-                className="absolute w-[calc(100%+32px)] h-[calc(100%+32px)] -top-4 -left-4 rounded-3xl pointer-events-none transition-all duration-500"
+                className="absolute w-[calc(100%+32px)] h-[calc(100%+16px)] top-0 -left-4 rounded-b-3xl pointer-events-none transition-all duration-500"
                 style={{
                   filter: 'blur(40px) saturate(2.2)',
                   opacity: lightsOff ? 0.95 : 0.65,

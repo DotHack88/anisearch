@@ -54,6 +54,7 @@ export default function VideoPlayer({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false)
   const [qualityFilter, setQualityFilter] = useState('auto') // 'auto', 'upscale', 'vivid', 'cinema'
   const [showQualityMenu, setShowQualityMenu] = useState(false)
+  const [isMirrored, setIsMirrored] = useState(false)
   const thumbDebounceRef = useRef(null)
 
   // Context Menu & Aspect Ratio & Stats states
@@ -321,15 +322,16 @@ export default function VideoPlayer({
 
   // Quality filter mappings (CSS filters)
   const getQualityStyles = () => {
+    const mirrorTransform = isMirrored ? 'scaleX(-1)' : 'none'
     switch (qualityFilter) {
       case 'upscale':
-        return { imageRendering: 'crisp-edges', filter: 'contrast(1.06) saturate(1.08) brightness(1.02)' }
+        return { imageRendering: 'pixelated', filter: 'contrast(1.06) saturate(1.08) brightness(1.02)', transform: mirrorTransform }
       case 'vivid':
-        return { filter: 'saturate(1.28) contrast(1.06) brightness(1.02)' }
+        return { filter: 'saturate(1.28) contrast(1.06) brightness(1.02)', transform: mirrorTransform }
       case 'cinema':
-        return { filter: 'brightness(0.92) contrast(0.95) saturate(0.88)' }
+        return { filter: 'brightness(0.92) contrast(0.95) saturate(0.88)', transform: mirrorTransform }
       default:
-        return {}
+        return { transform: mirrorTransform }
     }
   }
 
@@ -592,11 +594,13 @@ export default function VideoPlayer({
         </div>
       )}
 
-      {/* Clear progress button */}
+      {/* Clear progress button — fades with controls */}
       <button
         onClick={(e) => { e.stopPropagation(); onClearProgress?.() }}
         title="Cancella progresso"
-        className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/20 text-white hover:bg-red-600 hover:border-red-500 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm"
+        className={`absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/20 text-white hover:bg-red-600 hover:border-red-500 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm ${
+          showControls || !isPlaying ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
           <line x1="1" y1="1" x2="9" y2="9" /><line x1="9" y1="1" x2="1" y2="9" />
@@ -834,6 +838,16 @@ export default function VideoPlayer({
           <div className={`items-center gap-0.5 bg-black/30 rounded-lg px-0.5 py-0.5 hidden sm:flex flex-shrink-0 ${isSticky ? '!hidden' : ''}`}>
             <button onClick={takeScreenshot} title="Screenshot" className="w-6 h-6 flex items-center justify-center rounded text-white/60 hover:text-white transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+            {/* Mirror toggle */}
+            <button
+              onClick={() => setIsMirrored(m => !m)}
+              title={isMirrored ? 'Rimuovi Specchio' : 'Specchia Video'}
+              className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${isMirrored ? 'text-accent' : 'text-white/60 hover:text-white'}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 3v18M4.5 7l3 5-3 5M19.5 7l-3 5 3 5"/>
+              </svg>
             </button>
             <button onClick={onToggleAmbilight} title="Ambilight" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${ambilightActive ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>{ambilightActive && <circle cx="12" cy="10" r="2" fill="currentColor" className="animate-pulse"/>}</svg>
