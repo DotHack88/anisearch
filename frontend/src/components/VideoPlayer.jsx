@@ -56,6 +56,15 @@ export default function VideoPlayer({
   const [showQualityMenu, setShowQualityMenu] = useState(false)
   const thumbDebounceRef = useRef(null)
 
+  // Context Menu & Aspect Ratio & Stats states
+  const [contextMenu, setContextMenu] = useState({ x: 0, y: 0, visible: false })
+  const [isLooping, setIsLooping] = useState(false)
+  const [aspectRatio, setAspectRatio] = useState('default') // 'default' (contain), '16-9' (contain-16:9), '4-3', 'stretch'
+  const [showStats, setShowStats] = useState(false)
+  const [videoResolution, setVideoResolution] = useState({ w: 0, h: 0 })
+  const [isSticky, setIsSticky] = useState(false)
+  const [introDismissed, setIntroDismissed] = useState(false)
+
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
   // Sync volume on mount
@@ -75,12 +84,14 @@ export default function VideoPlayer({
     const onPause = () => setIsPlaying(false)
     const onTimeUpdate = () => {
       setCurrentTime(v.currentTime)
-      // buffered
       if (v.buffered.length > 0) {
         setBuffered((v.buffered.end(v.buffered.length - 1) / v.duration) * 100)
       }
     }
-    const onLoaded = () => setDuration(v.duration)
+    const onLoaded = () => {
+      setDuration(v.duration)
+      setVideoResolution({ w: v.videoWidth, h: v.videoHeight })
+    }
     const onWaiting = () => setIsBuffering(true)
     const onCanPlay = () => setIsBuffering(false)
     const onRateChange = () => setPlaybackRate(v.playbackRate)
@@ -109,6 +120,48 @@ export default function VideoPlayer({
       v.removeEventListener('leavepictureinpicture', onPiPLeave)
     }
   }, [src])
+
+  // Click outside to dismiss context menu & sticky on scroll listener
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      if (contextMenu.visible) setContextMenu(prev => ({ ...prev, visible: false }))
+    }
+    
+    const handleScroll = () => {
+      if (!containerRef.current || isWebFS || isFullscreen) return
+      const rect = containerRef.current.getBoundingClientRect()
+      // If the top of the video container goes above viewport AND bottom goes above center viewport
+      const shouldBeSticky = rect.bottom < 150
+      setIsSticky(shouldBeSticky)
+    }
+
+    window.addEventListener('click', handleGlobalClick)
+    window.addEventListener('scroll', handleScroll)
+    return () => {
+      window.removeEventListener('click', handleGlobalClick)
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [contextMenu.visible])
+
+  // Skip Intro auto-dismiss logic (dismisses after 5 seconds of visibility)
+  useEffect(() => {
+    if (showSkipIntro) {
+      setIntroDismissed(false)
+      const timer = setTimeout(() => {
+        setIntroDismissed(true)
+      }, 5000) // auto-hide after 5 seconds
+      return () => clearTimeout(timer)
+    } else {
+      setIntroDismissed(false)
+    }
+  }, [showSkipIntro])
+
+  // Reset introDismissed if user seeks back to start
+  useEffect(() => {
+    if (currentTime < 5) {
+      setIntroDismissed(false)
+    }
+  }, [currentTime])
 
   // Fullscreen change listener
   useEffect(() => {
@@ -270,13 +323,74 @@ export default function VideoPlayer({
     setShowSpeedMenu(false)
   }
 
+  // Handle right click context menu
+  const handleContextMenu = (e) => {
+    e.preventDefault()
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    setContextMenu({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      visible: true
+    })
+  }
+
+  // Toggle Video Loop
+  const toggleLoop = () => {
+    const v = videoRef.current
+    if (!v) return
+    const nextLoop = !isLooping
+    v.loop = nextLoop
+    setIsLooping(nextLoop)
+  }
+
+  // Screenshot capture function
+  const takeScreenshot = () => {
+    const v = videoRef.current
+    if (!v) return
+    const canvas = document.createElement('canvas')
+    canvas.width = v.videoWidth || 1920
+    canvas.height = v.videoHeight || 1080
+    const ctx = canvas.getContext('2d')
+    try {
+      ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL('image/png')
+      const link = document.createElement('a')
+      link.download = `AniSearch_Screenshot_${Math.floor(currentTime)}s.png`
+      link.href = dataUrl
+      link.click()
+    } catch (err) {
+      alert("Errore nello screenshot. La sorgente video potrebbe bloccare le catture (CORS).")
+    }
+  }
+
+  // Helper to map aspect ratio state to styling classes
+  const getAspectRatioClass = () => {
+    switch (aspectRatio) {
+      case '16-9':
+        return 'w-full h-full object-contain aspect-video'
+      case '4-3':
+        return 'w-full h-full object-fill aspect-[4/3]'
+      case 'stretch':
+        return 'w-full h-full object-fill'
+      default:
+        return 'w-full h-full object-contain'
+    }
+  }
+
   const progress = duration ? (currentTime / duration) * 100 : 0
+
+  // Detect if we are in cinema mode or fullscreen
+  const isWebFS = cinemaMode
 
   return (
     <div
       ref={containerRef}
-      className="video-player-container relative bg-black overflow-hidden w-full select-none"
-      style={{ aspectRatio: '16/9' }}
+      onContextMenu={handleContextMenu}
+      className={`video-player-container relative bg-black overflow-hidden select-none transition-all duration-300 
+        ${isWebFS ? 'w-full' : ''} 
+        ${isSticky ? 'fixed bottom-4 right-4 z-[9999] w-[340px] shadow-2xl rounded-xl border border-white/20' : 'w-full rounded-2xl'}`}
+      style={isSticky ? { aspectRatio: '16/9' } : (isWebFS ? {} : { aspectRatio: '16/9' })}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => {
         if (isPlaying) setShowControls(false)
@@ -295,11 +409,67 @@ export default function VideoPlayer({
         playsInline
         preload="auto"
         crossOrigin="anonymous"
-        className="w-full h-full object-contain transition-all duration-300"
+        className={getAspectRatioClass()}
         style={getQualityStyles()}
         onClick={togglePlay}
         onEnded={onEnded}
       />
+
+      {/* Nerd Stats Overlay */}
+      {showStats && (
+        <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md text-[10px] text-green-400 font-mono p-3 rounded-lg border border-white/10 z-30 pointer-events-auto leading-relaxed shadow-xl max-w-[220px]">
+          <div className="flex justify-between items-center border-b border-white/10 pb-1 mb-1">
+            <span className="font-bold">STATISTICHE VIDEO</span>
+            <button onClick={() => setShowStats(false)} className="text-white/40 hover:text-white font-bold ml-3">✕</button>
+          </div>
+          <div>Dimens.: {videoResolution.w}x{videoResolution.h}px</div>
+          <div>Tempo: {formatTime(currentTime)} / {formatTime(duration)}</div>
+          <div>Velocità: {playbackRate}x</div>
+          <div>Bufferizzato: {buffered.toFixed(1)}%</div>
+          <div>Loop: {isLooping ? 'ATTIVO' : 'SPENTO'}</div>
+          <div>Filtro: {getQualityLabel()}</div>
+        </div>
+      )}
+
+      {/* Custom Context Menu */}
+      {contextMenu.visible && (
+        <div
+          className="absolute bg-gray-900/95 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl py-1.5 z-[1000] text-xs min-w-[150px] font-sans text-white pointer-events-auto transition-opacity"
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => { toggleLoop(); setContextMenu(prev => ({ ...prev, visible: false })) }}
+            className="flex items-center justify-between w-full px-4 py-2 hover:bg-white/15 text-left transition-colors"
+          >
+            <span>Loop Video</span>
+            <span className={isLooping ? 'text-accent font-bold' : 'text-white/40'}>{isLooping ? 'ON' : 'OFF'}</span>
+          </button>
+          <div className="border-t border-white/10 my-1" />
+          <div className="px-4 py-1 text-[10px] text-white/40 font-semibold uppercase tracking-wider">Rapporto d'aspetto</div>
+          {[
+            { id: 'default', label: 'Default (Adatta)' },
+            { id: '16-9', label: '16:9' },
+            { id: '4-3', label: '4:3' },
+            { id: 'stretch', label: 'Riempi (Stira)' }
+          ].map(r => (
+            <button
+              key={r.id}
+              onClick={() => { setAspectRatio(r.id); setContextMenu(prev => ({ ...prev, visible: false })) }}
+              className={`block w-full px-4 py-1.5 hover:bg-white/15 text-left transition-colors ${aspectRatio === r.id ? 'text-accent font-bold' : ''}`}
+            >
+              {r.label}
+            </button>
+          ))}
+          <div className="border-t border-white/10 my-1" />
+          <button
+            onClick={() => { setShowStats(s => !s); setContextMenu(prev => ({ ...prev, visible: false })) }}
+            className="block w-full px-4 py-2 hover:bg-white/15 text-left transition-colors"
+          >
+            {showStats ? 'Nascondi Statistiche' : 'Statistiche per Nerd'}
+          </button>
+        </div>
+      )}
 
       {/* Buffering spinner */}
       {isBuffering && (
@@ -330,7 +500,7 @@ export default function VideoPlayer({
       </button>
 
       {/* Skip Intro */}
-      {showSkipIntro && (
+      {showSkipIntro && !introDismissed && (
         <button
           onClick={showSkipIntroAction}
           className="absolute bottom-20 left-6 z-20 px-4 py-2.5 bg-black/80 hover:bg-accent border border-white/10 hover:border-accent text-white font-semibold text-xs rounded-xl shadow-lg backdrop-blur-md transition-all duration-300 flex items-center gap-2 hover:scale-105"
@@ -415,7 +585,7 @@ export default function VideoPlayer({
           {/* Progress track */}
           <div
             ref={progressRef}
-            className="relative h-1 rounded-full cursor-pointer group/prog"
+            className="relative h-1.5 rounded-full cursor-pointer group/prog"
             style={{ background: 'rgba(255,255,255,0.2)' }}
             onClick={handleProgressClick}
             onMouseMove={handleProgressMouseMove}
@@ -434,7 +604,26 @@ export default function VideoPlayer({
               style={{ width: `${progress}%`, background: 'var(--color-accent, #fc384b)' }}
             />
             {/* Hover expand effect */}
-            <div className="absolute inset-0 rounded-full group-hover/prog:scale-y-[2.5] transition-transform origin-bottom" />
+            <div className="absolute inset-0 rounded-full group-hover/prog:scale-y-[2] transition-transform origin-bottom" />
+            
+            {/* Highlight Markers (Opening: 10s and 150s) */}
+            {duration > 180 && (
+              <>
+                {/* Intro Start Dot */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-yellow-400 border border-black shadow z-10 cursor-help"
+                  style={{ left: `${(10 / duration) * 100}%` }}
+                  title="Inizio Sigla"
+                />
+                {/* Intro End Dot */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-yellow-400 border border-black shadow z-10 cursor-help"
+                  style={{ left: `${(150 / duration) * 100}%` }}
+                  title="Fine Sigla"
+                />
+              </>
+            )}
+
             {/* Scrubber thumb */}
             <div
               className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-lg opacity-0 group-hover/prog:opacity-100 transition-opacity -translate-x-1/2"
@@ -533,6 +722,18 @@ export default function VideoPlayer({
 
           {/* ── Right icon group ── */}
           <div className="flex items-center gap-0.5 ml-1 bg-black/30 rounded-lg px-1 py-0.5">
+
+            {/* Screenshot 📸 */}
+            <button
+              onClick={takeScreenshot}
+              title="Cattura screenshot"
+              className="w-7 h-7 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
 
             {/* Ambilight */}
             <button

@@ -219,8 +219,8 @@ export default function WatchPage() {
         lastSaveTime = now
       }
 
-      // Check Skip Intro visibility (between 10s and 150s)
-      const shouldShowIntro = time >= 10 && time <= 150
+      // Check Skip Intro visibility (first 5 minutes / 300s of the video)
+      const shouldShowIntro = time >= 5 && time <= 300
       setShowSkipIntro(prev => prev !== shouldShowIntro ? shouldShowIntro : prev)
 
       // Check Skip Outro visibility (last 20s of video, if total duration > 300s)
@@ -575,7 +575,7 @@ export default function WatchPage() {
                   isOfflinePlay={isOfflinePlay}
                   showSkipIntro={showSkipIntro}
                   showSkipOutro={showSkipOutro}
-                  showSkipIntroAction={() => { if (videoRef.current) videoRef.current.currentTime = 150 }}
+                  showSkipIntroAction={() => { if (videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 90) }}
                   showSkipOutroAction={() => { if (nextEp) handleNavigateEp(nextEp); else if (videoRef.current) videoRef.current.currentTime = videoRef.current.duration - 2 }}
                   showSpeedBadge={showSpeedBadge}
                   currentSpeed={currentSpeed}

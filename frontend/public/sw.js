@@ -62,10 +62,16 @@ self.addEventListener('fetch', (event) => {
     fetch(request)
       .then((networkResponse) => {
         // Refresh the cache entry so the offline fallback stays fresh.
-        if (networkResponse.ok) {
-          caches.open(CACHE_NAME).then((cache) =>
-            cache.put(request, networkResponse.clone())
-          );
+        // Cache only: HTTP 200 (ok), GET requests, non-media and non-partial contents
+        const isGet = request.method === 'GET';
+        const isOk = networkResponse.ok && networkResponse.status === 200;
+        const isMedia = request.url.match(/\.(mp4|webm|ogg|mp3|wav|mov)$/i) || networkResponse.headers.get('content-type')?.includes('video') || networkResponse.headers.get('content-type')?.includes('audio');
+
+        if (isGet && isOk && !isMedia) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache).catch(() => {});
+          });
         }
         return networkResponse;
       })
