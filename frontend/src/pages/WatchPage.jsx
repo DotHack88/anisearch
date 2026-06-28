@@ -3,6 +3,7 @@ import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import api, { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress, searchAnime } from '../utils/api'
 import { useDownloads } from '../hooks/useDownloads.js'
 import AnimeCard from '../components/AnimeCard.jsx'
+import VideoPlayer from '../components/VideoPlayer.jsx'
 
 export default function WatchPage() {
   const { animeId, episodeId } = useParams()
@@ -222,9 +223,9 @@ export default function WatchPage() {
       const shouldShowIntro = time >= 10 && time <= 150
       setShowSkipIntro(prev => prev !== shouldShowIntro ? shouldShowIntro : prev)
 
-      // Check Skip Outro visibility (last 150s of video, if total duration > 5 min)
+      // Check Skip Outro visibility (last 20s of video, if total duration > 300s)
       if (duration && duration > 300) {
-        const shouldShowOutro = (duration - time) <= 150 && (duration - time) >= 5
+        const shouldShowOutro = (duration - time) <= 20 && (duration - time) >= 2
         setShowSkipOutro(prev => prev !== shouldShowOutro ? shouldShowOutro : prev)
       } else {
         setShowSkipOutro(false)
@@ -539,145 +540,55 @@ export default function WatchPage() {
             )}
 
             <div
-              className={`video-player-container mx-auto border border-border shadow-2xl relative bg-black overflow-hidden ${!cinemaMode ? 'w-full' : 'max-w-full'}`}
+              className={`video-player-container mx-auto border border-border shadow-2xl overflow-hidden ${!cinemaMode ? 'w-full' : 'max-w-full'}`}
               style={cinemaMode ? { width: 'calc(85vh * 16 / 9)' } : {}}
             >
-              {isOfflinePlay && (
-                <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-green-500/20 text-green-400 text-[10px] font-bold font-body">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  OFFLINE PLAYBACK
-                </div>
-              )}
-
-              {/* Clear progress button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  handleClearProgress();
-                }}
-                title="Cancella progresso"
-                aria-label="Cancella progresso"
-                className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/20 text-[#fc384b] hover:bg-red-600 hover:border-red-500 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm"
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#ffffffff" strokeWidth="2" strokeLinecap="round">
-                  <line x1="1" y1="1" x2="9" y2="9" />
-                  <line x1="9" y1="1" x2="1" y2="9" />
-                </svg>
-              </button>
               {loading ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center bg-surface/90">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin text-accent mb-4">
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                  <p className="text-sm text-text font-body">Acquisizione flusso video in corso...</p>
-                  <p className="text-xs text-muted font-body mt-1">Stiamo recuperando l'URL aggiornato da AnimeWorld</p>
+                <div className="relative bg-black" style={{ aspectRatio: '16/9' }}>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center bg-surface/90">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin text-accent mb-4">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    <p className="text-sm text-text font-body">Acquisizione flusso video in corso...</p>
+                    <p className="text-xs text-muted font-body mt-1">Stiamo recuperando l'URL aggiornato da AnimeWorld</p>
+                  </div>
                 </div>
               ) : error ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface/95">
-                  <p className="text-4xl mb-3">⚠️</p>
-                  <p className="text-sm font-semibold text-text font-body max-w-md">{error}</p>
-                  <a
-                    href={`https://www.animeworld.ac/play/${animeId}/${episodeId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-6 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-2">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                    Apri su AnimeWorld
-                  </a>
+                <div className="relative bg-black" style={{ aspectRatio: '16/9' }}>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface/95">
+                    <p className="text-4xl mb-3">⚠️</p>
+                    <p className="text-sm font-semibold text-text font-body max-w-md">{error}</p>
+                    <a
+                      href={`https://www.animeworld.ac/play/${animeId}/${episodeId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-6 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                      Apri su AnimeWorld
+                    </a>
+                  </div>
                 </div>
               ) : (
-                <>
-                  <video
-                    ref={videoRef}
-                    src={isOfflinePlay ? offlineUrl : videoUrl}
-                    controls
-                    autoPlay
-                    playsInline
-                    preload="auto"
-                    crossOrigin="anonymous"
-                    className="w-full h-full object-contain"
-                    onEnded={() => {
-                      if (nextEp) {
-                        setAutoplayCount(5)
-                      }
-                    }}
-                  />
-                  {showSkipIntro && (
-                    <button
-                      onClick={() => {
-                        if (videoRef.current) {
-                          videoRef.current.currentTime = 150
-                        }
-                      }}
-                      className="absolute bottom-16 left-6 z-20 px-4 py-2.5 bg-black/80 hover:bg-accent border border-white/10 hover:border-accent text-white font-body font-semibold text-xs rounded-xl shadow-lg backdrop-blur-md transition-all duration-300 flex items-center gap-2 hover:scale-105"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" />
-                        <line x1="19" y1="5" x2="19" y2="19" />
-                      </svg>
-                      Salta Sigla
-                    </button>
-                  )}
-                  {showSkipOutro && (
-                    <button
-                      onClick={() => {
-                        if (nextEp) {
-                          handleNavigateEp(nextEp)
-                        } else if (videoRef.current) {
-                          videoRef.current.currentTime = videoRef.current.duration - 2
-                        }
-                      }}
-                      className="absolute bottom-16 right-6 z-20 px-4 py-2.5 bg-accent hover:bg-accent-h text-white font-body font-bold text-xs rounded-xl shadow-[0_0_20px_rgba(251,56,75,0.4)] border border-accent-h hover:scale-105 transition-all duration-300 flex items-center gap-2"
-                    >
-                      <span>{nextEp ? 'Prossimo Episodio' : 'Salta Finale'}</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" />
-                        <line x1="19" y1="5" x2="19" y2="19" />
-                      </svg>
-                    </button>
-                  )}
-
-                  {/* Playback Speed Badge Overlay */}
-                  {showSpeedBadge && (
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/75 px-4 py-2 rounded-xl text-white font-body font-bold text-sm pointer-events-none z-30 flex items-center gap-2 border border-white/10">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polygon points="13 19 22 12 13 5 13 19" fill="currentColor" />
-                        <polygon points="2 19 11 12 2 5 2 19" fill="currentColor" />
-                      </svg>
-                      {currentSpeed}x
-                    </div>
-                  )}
-
-                  {/* Autoplay Countdown Overlay */}
-                  {autoplayCount !== null && (
-                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-30 flex flex-col items-center justify-center text-center p-6">
-                      <p className="text-muted text-xs uppercase tracking-widest font-semibold mb-2">Fine dell'episodio</p>
-                      <h3 className="text-xl font-bold font-display text-text mb-6">
-                        Il prossimo episodio inizierà tra <span className="text-accent text-2xl font-black">{autoplayCount}</span> secondi
-                      </h3>
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => setAutoplayCount(null)}
-                          className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white rounded-xl font-body font-semibold text-xs transition-all hover:scale-105"
-                        >
-                          Annulla
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (nextEp) {
-                              handleNavigateEp(nextEp)
-                            }
-                            setAutoplayCount(null)
-                          }}
-                          className="px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-semibold text-xs transition-all shadow-[0_0_20px_rgba(251,56,75,0.4)] hover:scale-105"
-                        >
-                          Riproduci Ora
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
+                <VideoPlayer
+                  src={isOfflinePlay ? offlineUrl : videoUrl}
+                  videoRef={videoRef}
+                  onEnded={() => { if (nextEp) setAutoplayCount(5) }}
+                  isOfflinePlay={isOfflinePlay}
+                  showSkipIntro={showSkipIntro}
+                  showSkipOutro={showSkipOutro}
+                  showSkipIntroAction={() => { if (videoRef.current) videoRef.current.currentTime = 150 }}
+                  showSkipOutroAction={() => { if (nextEp) handleNavigateEp(nextEp); else if (videoRef.current) videoRef.current.currentTime = videoRef.current.duration - 2 }}
+                  showSpeedBadge={showSpeedBadge}
+                  currentSpeed={currentSpeed}
+                  autoplayCount={autoplayCount}
+                  onCancelAutoplay={() => setAutoplayCount(null)}
+                  onPlayNow={() => { if (nextEp) handleNavigateEp(nextEp); setAutoplayCount(null) }}
+                  nextEpLabel={nextEp ? 'Prossimo Episodio' : 'Salta Finale'}
+                  onClearProgress={handleClearProgress}
+                  cinemaMode={cinemaMode}
+                  onToggleCinema={() => setCinemaMode(v => !v)}
+                  ambilightActive={ambilightActive}
+                  onToggleAmbilight={() => setAmbilightActive(v => !v)}
+                />
               )}
             </div>
           </div>
