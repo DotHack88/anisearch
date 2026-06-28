@@ -508,18 +508,7 @@ export default function VideoPlayer({
         <span className="text-[9px] font-bold mt-0.5 opacity-80">-10s</span>
       </button>
 
-      <button
-        onClick={(e) => handleSideClick(e, 'forward')}
-        className={`absolute right-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/50 hover:bg-black/80 border border-white/10 hover:border-accent text-white flex flex-col items-center justify-center transition-all duration-300 active:scale-95 shadow-2xl backdrop-blur-md cursor-pointer group ${
-          showControls || !isPlaying ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
-        }`}
-        title="Avanti 10s"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform">
-          <path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
-        </svg>
-        <span className="text-[9px] font-bold mt-0.5 opacity-80">+10s</span>
-      </button>
+
 
       {/* Nerd Stats Overlay */}
       {showStats && (
@@ -839,14 +828,35 @@ export default function VideoPlayer({
             <button onClick={takeScreenshot} title="Screenshot" className="w-6 h-6 flex items-center justify-center rounded text-white/60 hover:text-white transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </button>
-            {/* Mirror toggle */}
+            {/* Cast / Remote Playback */}
             <button
-              onClick={() => setIsMirrored(m => !m)}
-              title={isMirrored ? 'Rimuovi Specchio' : 'Specchia Video'}
-              className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${isMirrored ? 'text-accent' : 'text-white/60 hover:text-white'}`}
+              onClick={() => {
+                const v = videoRef.current
+                if (!v) return
+                if (v.remote && v.remote.state !== 'disconnected') {
+                  v.remote.disconnect().catch(() => {})
+                } else if (v.remote) {
+                  v.remote.prompt().catch(() => {})
+                } else {
+                  // Fallback: open a new window that plays the same src
+                  const w = window.open('', '_blank', 'width=1280,height=720')
+                  if (w) {
+                    w.document.write(`<!DOCTYPE html><html><head><title>AniSearch Cast</title><style>body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}video{max-width:100%;max-height:100vh}</style></head><body><video src="${v.src}" autoplay controls style="width:100%;height:100vh;object-fit:contain"></video></body></html>`)
+                    w.document.close()
+                    const newV = w.document.querySelector('video')
+                    if (newV) newV.currentTime = v.currentTime
+                  }
+                }
+              }}
+              title="Trasmetti su TV (Cast)"
+              className="w-6 h-6 flex items-center justify-center rounded transition-colors text-white/60 hover:text-white"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 3v18M4.5 7l3 5-3 5M19.5 7l-3 5 3 5"/>
+                <path d="M2 8.5A12.5 12.5 0 0 1 14.5 21"/>
+                <path d="M2 12.5A8.5 8.5 0 0 1 10.5 21"/>
+                <path d="M2 16.5A4.5 4.5 0 0 1 6.5 21"/>
+                <rect x="2" y="3" width="20" height="13" rx="2"/>
+                <circle cx="2" cy="21" r="1" fill="currentColor"/>
               </svg>
             </button>
             <button onClick={onToggleAmbilight} title="Ambilight" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${ambilightActive ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
