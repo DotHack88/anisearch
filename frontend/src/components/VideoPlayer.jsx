@@ -416,17 +416,17 @@ export default function VideoPlayer({
     }
   }
 
-  // Helper to map aspect ratio state to styling classes
-  const getAspectRatioClass = () => {
+  // Helper to map aspect ratio state to inline styles
+  const getAspectRatioStyle = () => {
     switch (aspectRatio) {
       case '16-9':
-        return 'w-full h-full object-contain aspect-video'
+        return { objectFit: 'contain', width: '100%', height: '100%' }
       case '4-3':
-        return 'w-full h-full object-fill aspect-[4/3]'
+        return { objectFit: 'contain', width: '100%', height: '100%', aspectRatio: '4/3' }
       case 'stretch':
-        return 'w-full h-full object-fill'
+        return { objectFit: 'fill', width: '100%', height: '100%' }
       default:
-        return 'w-full h-full object-contain'
+        return { objectFit: 'contain', width: '100%', height: '100%' }
     }
   }
 
@@ -461,8 +461,8 @@ export default function VideoPlayer({
         playsInline
         preload="auto"
         crossOrigin="anonymous"
-        className={getAspectRatioClass()}
-        style={getQualityStyles()}
+        className="block"
+        style={{ ...getAspectRatioStyle(), ...getQualityStyles() }}
         onClick={handleVideoClick}
         onEnded={onEnded}
       />
