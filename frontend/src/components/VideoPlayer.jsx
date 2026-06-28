@@ -64,6 +64,9 @@ export default function VideoPlayer({
   const [videoResolution, setVideoResolution] = useState({ w: 0, h: 0 })
   const [isSticky, setIsSticky] = useState(false)
   const [introDismissed, setIntroDismissed] = useState(false)
+  const [showSkipBackFeedback, setShowSkipBackFeedback] = useState(false)
+  const [showSkipForwardFeedback, setShowSkipForwardFeedback] = useState(false)
+  const lastClickTimeRef = useRef(0)
 
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
@@ -190,6 +193,53 @@ export default function VideoPlayer({
     if (!v) return
     if (v.paused) v.play().catch(() => {})
     else v.pause()
+  }
+
+  // Quick skip back/forward handlers
+  const skipBackward = useCallback((seconds = 10) => {
+    const v = videoRef.current
+    if (!v) return
+    v.currentTime = Math.max(0, v.currentTime - seconds)
+    setCurrentTime(v.currentTime)
+    setShowSkipBackFeedback(true)
+    setTimeout(() => setShowSkipBackFeedback(false), 500)
+  }, [videoRef])
+
+  const skipForward = useCallback((seconds = 10) => {
+    const v = videoRef.current
+    if (!v) return
+    v.currentTime = Math.min(v.duration || 0, v.currentTime + seconds)
+    setCurrentTime(v.currentTime)
+    setShowSkipForwardFeedback(true)
+    setTimeout(() => setShowSkipForwardFeedback(false), 500)
+  }, [videoRef])
+
+  const handleVideoClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const width = rect.width
+    const currentTimeStamp = Date.now()
+
+    if (currentTimeStamp - lastClickTimeRef.current < 300) {
+      if (clickX < width / 2) {
+        skipBackward(10)
+      } else {
+        skipForward(10)
+      }
+      lastClickTimeRef.current = 0
+    } else {
+      lastClickTimeRef.current = currentTimeStamp
+      togglePlay()
+    }
+  }
+
+  const handleSideClick = (e, direction) => {
+    e.stopPropagation()
+    if (direction === 'back') {
+      skipBackward(10)
+    } else {
+      skipForward(10)
+    }
   }
 
   // Progress bar interaction
@@ -411,9 +461,63 @@ export default function VideoPlayer({
         crossOrigin="anonymous"
         className={getAspectRatioClass()}
         style={getQualityStyles()}
-        onClick={togglePlay}
+        onClick={handleVideoClick}
         onEnded={onEnded}
       />
+
+      {/* Double Tap Skip Feedback Overlays */}
+      <div
+        className={`absolute left-0 top-0 bottom-0 w-1/3 bg-gradient-to-r from-white/10 to-transparent flex flex-col items-center justify-center pointer-events-none z-30 transition-all duration-300 rounded-r-full ${
+          showSkipBackFeedback ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+        }`}
+      >
+        <div className="bg-black/60 p-4 rounded-full flex flex-col items-center justify-center shadow-2xl border border-white/10">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white animate-pulse">
+            <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
+          </svg>
+          <span className="text-white text-xs font-bold mt-1">-10s</span>
+        </div>
+      </div>
+
+      <div
+        className={`absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-white/10 to-transparent flex flex-col items-center justify-center pointer-events-none z-30 transition-all duration-300 rounded-l-full ${
+          showSkipForwardFeedback ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+        }`}
+      >
+        <div className="bg-black/60 p-4 rounded-full flex flex-col items-center justify-center shadow-2xl border border-white/10">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white animate-pulse">
+            <path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
+          </svg>
+          <span className="text-white text-xs font-bold mt-1">+10s</span>
+        </div>
+      </div>
+
+      {/* Side Quick Skip Buttons */}
+      <button
+        onClick={(e) => handleSideClick(e, 'back')}
+        className={`absolute left-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/50 hover:bg-black/80 border border-white/10 hover:border-accent text-white flex flex-col items-center justify-center transition-all duration-300 active:scale-95 shadow-2xl backdrop-blur-md cursor-pointer group ${
+          showControls || !isPlaying ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'
+        }`}
+        title="Indietro 10s"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:-translate-x-0.5 transition-transform">
+          <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
+        </svg>
+        <span className="text-[9px] font-bold mt-0.5 opacity-80">-10s</span>
+      </button>
+
+      <button
+        onClick={(e) => handleSideClick(e, 'forward')}
+        className={`absolute right-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/50 hover:bg-black/80 border border-white/10 hover:border-accent text-white flex flex-col items-center justify-center transition-all duration-300 active:scale-95 shadow-2xl backdrop-blur-md cursor-pointer group ${
+          showControls || !isPlaying ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
+        }`}
+        title="Avanti 10s"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform">
+          <path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
+        </svg>
+        <span className="text-[9px] font-bold mt-0.5 opacity-80">+10s</span>
+      </button>
 
       {/* Nerd Stats Overlay */}
       {showStats && (
@@ -658,21 +762,24 @@ export default function VideoPlayer({
               type="range" min="0" max="1" step="0.05"
               value={isMuted ? 0 : volume}
               onChange={handleVolumeChange}
-              className="w-16 accent-accent cursor-pointer"
+              className={`w-16 accent-accent cursor-pointer hidden md:block ${isSticky ? '!hidden' : ''}`}
               style={{ height: '3px' }}
             />
           </div>
 
           {/* Time display */}
-          <div className="text-white text-xs font-mono flex-1 ml-1 select-none">
+          <div className="text-white text-xs font-mono ml-1 select-none whitespace-nowrap">
             {formatTime(currentTime)} <span className="text-white/40">/</span> {formatTime(duration)}
           </div>
+
+          {/* Spacer to push controls to the right */}
+          <div className="flex-grow" />
 
           {/* Playback speed */}
           <div className="relative">
             <button
               onClick={() => { setShowSpeedMenu(v => !v); setShowQualityMenu(false) }}
-              className="text-white hover:text-accent transition-colors text-xs font-bold px-2 py-1 rounded border border-white/20 hover:border-accent/50"
+              className="text-white hover:text-accent transition-colors text-xs font-bold px-2 py-1 rounded border border-white/20 hover:border-accent/50 whitespace-nowrap"
             >
               {playbackRate}x
             </button>
@@ -695,7 +802,7 @@ export default function VideoPlayer({
           <div className="relative ml-1">
             <button
               onClick={() => { setShowQualityMenu(v => !v); setShowSpeedMenu(false) }}
-              className="text-white hover:text-accent transition-colors text-xs font-bold px-2.5 py-1 rounded border border-white/20 hover:border-accent/50 bg-white/5 flex items-center gap-1"
+              className="text-white hover:text-accent transition-colors text-xs font-bold px-2.5 py-1 rounded border border-white/20 hover:border-accent/50 bg-white/5 flex items-center gap-1 whitespace-nowrap"
             >
               <span>{getQualityLabel()}</span>
               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
@@ -721,7 +828,7 @@ export default function VideoPlayer({
           </div>
 
           {/* ── Right icon group ── */}
-          <div className="flex items-center gap-0.5 ml-1 bg-black/30 rounded-lg px-1 py-0.5">
+          <div className={`items-center gap-0.5 ml-1 bg-black/30 rounded-lg px-1 py-0.5 hidden md:flex ${isSticky ? '!hidden' : ''}`}>
 
             {/* Screenshot 📸 */}
             <button
@@ -774,22 +881,23 @@ export default function VideoPlayer({
               </svg>
             </button>
 
-            {/* OS Fullscreen */}
-            <button
-              onClick={toggleFullscreen}
-              title={isFullscreen ? 'Esci dal Fullscreen' : 'Fullscreen'}
-              className="w-7 h-7 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors"
-            >
-              {isFullscreen ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-              )}
-            </button>
+          </div>
+
+          {/* OS Fullscreen — sempre visibile */}
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Esci dal Fullscreen' : 'Fullscreen'}
+            className="w-7 h-7 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors ml-1"
+          >
+            {isFullscreen ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            )}
+          </button>
 
           </div>
         </div>
-      </div>
 
       {/* Big play button center overlay when paused */}
       {!isPlaying && !isBuffering && autoplayCount === null && (
