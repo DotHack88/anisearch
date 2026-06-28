@@ -736,8 +736,8 @@ export default function VideoPlayer({
           </div>
         </div>
 
-        {/* Controls row */}
-        <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+        {/* Controls row — responsive, no overflow */}
+        <div className="flex items-center gap-1 px-2 pb-3 pt-1 min-w-0 overflow-hidden">
           {/* Play/Pause */}
           <button onClick={togglePlay} className="text-white hover:text-accent transition-colors w-8 h-8 flex items-center justify-center flex-shrink-0">
             {isPlaying ? (
@@ -747,49 +747,49 @@ export default function VideoPlayer({
             )}
           </button>
 
-          {/* Volume — always visible */}
-          <div className="flex items-center gap-1.5">
+          {/* Volume */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={toggleMute} className="text-white hover:text-accent transition-colors w-7 h-7 flex items-center justify-center flex-shrink-0">
               {isMuted || volume === 0 ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
               ) : volume < 0.5 ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
               ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
               )}
             </button>
             <input
               type="range" min="0" max="1" step="0.05"
               value={isMuted ? 0 : volume}
               onChange={handleVolumeChange}
-              className={`w-16 accent-accent cursor-pointer hidden md:block ${isSticky ? '!hidden' : ''}`}
+              className="w-14 accent-accent cursor-pointer hidden sm:block"
               style={{ height: '3px' }}
             />
           </div>
 
-          {/* Time display */}
-          <div className="text-white text-xs font-mono ml-1 select-none whitespace-nowrap">
-            {formatTime(currentTime)} <span className="text-white/40">/</span> {formatTime(duration)}
+          {/* Time */}
+          <div className="text-white text-[10px] font-mono ml-0.5 select-none whitespace-nowrap flex-shrink-0">
+            {formatTime(currentTime)}<span className="text-white/40 mx-0.5">/</span>{formatTime(duration)}
           </div>
 
-          {/* Spacer to push controls to the right */}
-          <div className="flex-grow" />
+          {/* Spacer */}
+          <div className="flex-1 min-w-0" />
 
-          {/* Playback speed */}
-          <div className="relative">
+          {/* Speed */}
+          <div className="relative flex-shrink-0">
             <button
               onClick={() => { setShowSpeedMenu(v => !v); setShowQualityMenu(false) }}
-              className="text-white hover:text-accent transition-colors text-xs font-bold px-2 py-1 rounded border border-white/20 hover:border-accent/50 whitespace-nowrap"
+              className="text-white hover:text-accent transition-colors text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 hover:border-accent/50 whitespace-nowrap leading-tight"
             >
               {playbackRate}x
             </button>
             {showSpeedMenu && (
-              <div className="absolute bottom-8 right-0 bg-gray-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50">
+              <div className="absolute bottom-9 right-0 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50">
                 {speeds.map(s => (
                   <button
                     key={s}
                     onClick={() => setSpeed(s)}
-                    className={`block w-full px-4 py-1.5 text-xs text-left transition-colors hover:bg-white/10 ${playbackRate === s ? 'text-accent font-bold' : 'text-white'}`}
+                    className={`block w-full px-4 py-2 text-xs text-left transition-colors hover:bg-white/10 ${playbackRate === s ? 'text-accent font-bold' : 'text-white'}`}
                   >
                     {s}x
                   </button>
@@ -798,17 +798,20 @@ export default function VideoPlayer({
             )}
           </div>
 
-          {/* Quality Selector */}
-          <div className="relative ml-1">
+          {/* Quality */}
+          <div className="relative flex-shrink-0">
             <button
               onClick={() => { setShowQualityMenu(v => !v); setShowSpeedMenu(false) }}
-              className="text-white hover:text-accent transition-colors text-xs font-bold px-2.5 py-1 rounded border border-white/20 hover:border-accent/50 bg-white/5 flex items-center gap-1 whitespace-nowrap"
+              className="text-white hover:text-accent transition-colors text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 hover:border-accent/50 bg-white/5 flex items-center gap-0.5 whitespace-nowrap leading-tight"
             >
-              <span>{getQualityLabel()}</span>
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
+              <span className="hidden sm:inline max-w-[68px] truncate">{getQualityLabel()}</span>
+              <span className="sm:hidden text-[9px] font-black tracking-tight">
+                {qualityFilter === 'upscale' ? '↑HD' : qualityFilter === 'vivid' ? 'VVD' : qualityFilter === 'cinema' ? 'CIN' : 'AUTO'}
+              </span>
+              <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             {showQualityMenu && (
-              <div className="absolute bottom-8 right-0 bg-gray-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 min-w-[120px]">
+              <div className="absolute bottom-9 right-0 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 min-w-[130px]">
                 {[
                   { id: 'auto', label: 'Auto (Sorgente)' },
                   { id: 'upscale', label: 'Upscale 1080p' },
@@ -827,77 +830,39 @@ export default function VideoPlayer({
             )}
           </div>
 
-          {/* ── Right icon group ── */}
-          <div className={`items-center gap-0.5 ml-1 bg-black/30 rounded-lg px-1 py-0.5 hidden md:flex ${isSticky ? '!hidden' : ''}`}>
-
-            {/* Screenshot 📸 */}
-            <button
-              onClick={takeScreenshot}
-              title="Cattura screenshot"
-              className="w-7 h-7 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
+          {/* Icon cluster — hidden on mobile */}
+          <div className={`items-center gap-0.5 bg-black/30 rounded-lg px-0.5 py-0.5 hidden sm:flex flex-shrink-0 ${isSticky ? '!hidden' : ''}`}>
+            <button onClick={takeScreenshot} title="Screenshot" className="w-6 h-6 flex items-center justify-center rounded text-white/60 hover:text-white transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </button>
-
-            {/* Ambilight */}
-            <button
-              onClick={onToggleAmbilight}
-              title={ambilightActive ? 'Disattiva Ambilight' : 'Attiva Ambilight'}
-              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${ambilightActive ? 'text-accent' : 'text-white/70 hover:text-white'}`}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-                {ambilightActive && <circle cx="12" cy="10" r="2" fill="currentColor" className="animate-pulse" />}
-              </svg>
+            <button onClick={onToggleAmbilight} title="Ambilight" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${ambilightActive ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>{ambilightActive && <circle cx="12" cy="10" r="2" fill="currentColor" className="animate-pulse"/>}</svg>
             </button>
-
-            {/* PiP */}
             {'pictureInPictureEnabled' in document && (
-              <button
-                onClick={togglePiP}
-                title={isPiP ? 'Esci da Picture-in-Picture' : 'Picture-in-Picture'}
-                className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${isPiP ? 'text-accent' : 'text-white/70 hover:text-white'}`}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2"/>
-                  <rect x="13" y="10" width="8" height="5" rx="1" fill="currentColor" stroke="none"/>
-                </svg>
+              <button onClick={togglePiP} title="PiP" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${isPiP ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="13" y="10" width="8" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
               </button>
             )}
-
-            {/* Web Fullscreen = Cinema Mode */}
-            <button
-              onClick={onToggleCinema}
-              title={cinemaMode ? 'Disattiva Modalità Cinema' : 'Modalità Cinema (espande il player)'}
-              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${cinemaMode ? 'text-accent' : 'text-white/70 hover:text-white'}`}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M21.20 3.01L21 3H3L2.79 3.01C2.30 3.06 1.84 3.29 1.51 3.65C1.18 4.02 .99 4.50 1 5V19L1.01 19.20C1.05 19.66 1.26 20.08 1.58 20.41C1.91 20.73 2.33 20.94 2.79 20.99L3 21H21L21.20 20.98C21.66 20.94 22.08 20.73 22.41 20.41C22.73 20.08 22.94 19.66 22.99 19.20L23 19V5C23.00 4.50 22.81 4.02 22.48 3.65C22.15 3.29 21.69 3.06 21.20 3.01ZM3 15V5H21V15H3ZM3 19V17H21V19H3Z"/>
-              </svg>
+            <button onClick={onToggleCinema} title="Cinema" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${cinemaMode ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M21.20 3.01L21 3H3L2.79 3.01C2.30 3.06 1.84 3.29 1.51 3.65C1.18 4.02 .99 4.50 1 5V19L1.01 19.20C1.05 19.66 1.26 20.08 1.58 20.41C1.91 20.73 2.33 20.94 2.79 20.99L3 21H21L21.20 20.98C21.66 20.94 22.08 20.73 22.41 20.41C22.73 20.08 22.94 19.66 22.99 19.20L23 19V5C23.00 4.50 22.81 4.02 22.48 3.65C22.15 3.29 21.69 3.06 21.20 3.01ZM3 15V5H21V15H3ZM3 19V17H21V19H3Z"/></svg>
             </button>
-
           </div>
 
-          {/* OS Fullscreen — sempre visibile */}
+          {/* Fullscreen — always visible */}
           <button
             onClick={toggleFullscreen}
-            title={isFullscreen ? 'Esci dal Fullscreen' : 'Fullscreen'}
-            className="w-7 h-7 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors ml-1"
+            title={isFullscreen ? 'Esci' : 'Fullscreen'}
+            className="w-7 h-7 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors flex-shrink-0"
           >
             {isFullscreen ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
             ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
             )}
           </button>
 
-          </div>
         </div>
+      </div>
 
       {/* Big play button center overlay when paused */}
       {!isPlaying && !isBuffering && autoplayCount === null && (
