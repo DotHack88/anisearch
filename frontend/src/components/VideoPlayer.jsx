@@ -467,19 +467,7 @@ export default function VideoPlayer({
         onEnded={onEnded}
       />
 
-      {/* Double Tap Skip Feedback Overlays */}
-      <div
-        className={`absolute left-0 top-0 bottom-0 w-1/3 bg-gradient-to-r from-white/10 to-transparent flex flex-col items-center justify-center pointer-events-none z-30 transition-all duration-300 rounded-r-full ${
-          showSkipBackFeedback ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-        }`}
-      >
-        <div className="bg-black/60 p-4 rounded-full flex flex-col items-center justify-center shadow-2xl border border-white/10">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white animate-pulse">
-            <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
-          </svg>
-          <span className="text-white text-xs font-bold mt-1">-10s</span>
-        </div>
-      </div>
+      {/* Double Tap Skip Feedback Overlays — only right side */}
 
       <div
         className={`absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-white/10 to-transparent flex flex-col items-center justify-center pointer-events-none z-30 transition-all duration-300 rounded-l-full ${
@@ -508,6 +496,19 @@ export default function VideoPlayer({
         <span className="text-[9px] font-bold mt-0.5 opacity-80">-10s</span>
       </button>
 
+      {/* Right side +10s button */}
+      <button
+        onClick={(e) => handleSideClick(e, 'forward')}
+        className={`absolute right-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/50 hover:bg-black/80 border border-white/10 hover:border-accent text-white flex flex-col items-center justify-center transition-all duration-300 active:scale-95 shadow-2xl backdrop-blur-md cursor-pointer group ${
+          showControls || !isPlaying ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
+        }`}
+        title="Avanti 10s"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform">
+          <path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
+        </svg>
+        <span className="text-[9px] font-bold mt-0.5 opacity-80">+10s</span>
+      </button>
 
 
       {/* Nerd Stats Overlay */}
@@ -730,39 +731,39 @@ export default function VideoPlayer({
         </div>
 
         {/* Controls row — responsive, no overflow */}
-        <div className="flex items-center gap-1 px-2 pb-3 pt-1 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-2 px-3 pb-4 pt-1.5 min-w-0 overflow-hidden">
           {/* Play/Pause */}
-          <button onClick={togglePlay} className="text-white hover:text-accent transition-colors w-8 h-8 flex items-center justify-center flex-shrink-0">
+          <button onClick={togglePlay} className="text-white hover:text-accent transition-colors w-10 h-10 flex items-center justify-center flex-shrink-0">
             {isPlaying ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
             ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             )}
           </button>
 
           {/* Volume */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={toggleMute} className="text-white hover:text-accent transition-colors w-7 h-7 flex items-center justify-center flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button onClick={toggleMute} className="text-white hover:text-accent transition-colors w-9 h-9 flex items-center justify-center flex-shrink-0">
               {isMuted || volume === 0 ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
               ) : volume < 0.5 ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
               ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
               )}
             </button>
             <input
               type="range" min="0" max="1" step="0.05"
               value={isMuted ? 0 : volume}
               onChange={handleVolumeChange}
-              className="w-14 accent-accent cursor-pointer hidden sm:block"
-              style={{ height: '3px' }}
+              className="w-16 accent-accent cursor-pointer hidden sm:block"
+              style={{ height: '4px' }}
             />
           </div>
 
           {/* Time */}
-          <div className="text-white text-[10px] font-mono ml-0.5 select-none whitespace-nowrap flex-shrink-0">
-            {formatTime(currentTime)}<span className="text-white/40 mx-0.5">/</span>{formatTime(duration)}
+          <div className="text-white text-xs font-mono ml-1 select-none whitespace-nowrap flex-shrink-0">
+            {formatTime(currentTime)}<span className="text-white/40 mx-1">/</span>{formatTime(duration)}
           </div>
 
           {/* Spacer */}
@@ -772,7 +773,7 @@ export default function VideoPlayer({
           <div className="relative flex-shrink-0">
             <button
               onClick={() => { setShowSpeedMenu(v => !v); setShowQualityMenu(false) }}
-              className="text-white hover:text-accent transition-colors text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 hover:border-accent/50 whitespace-nowrap leading-tight"
+              className="text-white hover:text-accent transition-colors text-xs font-bold px-2 py-1 rounded border border-white/20 hover:border-accent/50 whitespace-nowrap leading-tight"
             >
               {playbackRate}x
             </button>
@@ -795,13 +796,13 @@ export default function VideoPlayer({
           <div className="relative flex-shrink-0">
             <button
               onClick={() => { setShowQualityMenu(v => !v); setShowSpeedMenu(false) }}
-              className="text-white hover:text-accent transition-colors text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 hover:border-accent/50 bg-white/5 flex items-center gap-0.5 whitespace-nowrap leading-tight"
+              className="text-white hover:text-accent transition-colors text-xs font-bold px-2 py-1 rounded border border-white/20 hover:border-accent/50 bg-white/5 flex items-center gap-1 whitespace-nowrap leading-tight"
             >
-              <span className="hidden sm:inline max-w-[68px] truncate">{getQualityLabel()}</span>
-              <span className="sm:hidden text-[9px] font-black tracking-tight">
+              <span className="hidden sm:inline max-w-[80px] truncate">{getQualityLabel()}</span>
+              <span className="sm:hidden text-[10px] font-black tracking-tight">
                 {qualityFilter === 'upscale' ? '↑HD' : qualityFilter === 'vivid' ? 'VVD' : qualityFilter === 'cinema' ? 'CIN' : 'AUTO'}
               </span>
-              <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             {showQualityMenu && (
               <div className="absolute bottom-9 right-0 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 min-w-[130px]">
@@ -824,51 +825,21 @@ export default function VideoPlayer({
           </div>
 
           {/* Icon cluster — hidden on mobile */}
-          <div className={`items-center gap-0.5 bg-black/30 rounded-lg px-0.5 py-0.5 hidden sm:flex flex-shrink-0 ${isSticky ? '!hidden' : ''}`}>
-            <button onClick={takeScreenshot} title="Screenshot" className="w-6 h-6 flex items-center justify-center rounded text-white/60 hover:text-white transition-colors">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <div className={`items-center gap-1 bg-black/30 rounded-lg px-1 py-1 hidden sm:flex flex-shrink-0 ${isSticky ? '!hidden' : ''}`}>
+            <button onClick={takeScreenshot} title="Screenshot" className="w-8 h-8 flex items-center justify-center rounded text-white/60 hover:text-white transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </button>
-            {/* Cast / Remote Playback */}
-            <button
-              onClick={() => {
-                const v = videoRef.current
-                if (!v) return
-                if (v.remote && v.remote.state !== 'disconnected') {
-                  v.remote.disconnect().catch(() => {})
-                } else if (v.remote) {
-                  v.remote.prompt().catch(() => {})
-                } else {
-                  // Fallback: open a new window that plays the same src
-                  const w = window.open('', '_blank', 'width=1280,height=720')
-                  if (w) {
-                    w.document.write(`<!DOCTYPE html><html><head><title>AniSearch Cast</title><style>body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}video{max-width:100%;max-height:100vh}</style></head><body><video src="${v.src}" autoplay controls style="width:100%;height:100vh;object-fit:contain"></video></body></html>`)
-                    w.document.close()
-                    const newV = w.document.querySelector('video')
-                    if (newV) newV.currentTime = v.currentTime
-                  }
-                }
-              }}
-              title="Trasmetti su TV (Cast)"
-              className="w-6 h-6 flex items-center justify-center rounded transition-colors text-white/60 hover:text-white"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M2 8.5A12.5 12.5 0 0 1 14.5 21"/>
-                <path d="M2 12.5A8.5 8.5 0 0 1 10.5 21"/>
-                <path d="M2 16.5A4.5 4.5 0 0 1 6.5 21"/>
-                <rect x="2" y="3" width="20" height="13" rx="2"/>
-                <circle cx="2" cy="21" r="1" fill="currentColor"/>
-              </svg>
-            </button>
-            <button onClick={onToggleAmbilight} title="Ambilight" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${ambilightActive ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>{ambilightActive && <circle cx="12" cy="10" r="2" fill="currentColor" className="animate-pulse"/>}</svg>
+
+            <button onClick={onToggleAmbilight} title="Ambilight" className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${ambilightActive ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>{ambilightActive && <circle cx="12" cy="10" r="2" fill="currentColor" className="animate-pulse"/>}</svg>
             </button>
             {'pictureInPictureEnabled' in document && (
-              <button onClick={togglePiP} title="PiP" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${isPiP ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="13" y="10" width="8" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
+              <button onClick={togglePiP} title="PiP" className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${isPiP ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="13" y="10" width="8" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
               </button>
             )}
-            <button onClick={onToggleCinema} title="Cinema" className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${cinemaMode ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M21.20 3.01L21 3H3L2.79 3.01C2.30 3.06 1.84 3.29 1.51 3.65C1.18 4.02 .99 4.50 1 5V19L1.01 19.20C1.05 19.66 1.26 20.08 1.58 20.41C1.91 20.73 2.33 20.94 2.79 20.99L3 21H21L21.20 20.98C21.66 20.94 22.08 20.73 22.41 20.41C22.73 20.08 22.94 19.66 22.99 19.20L23 19V5C23.00 4.50 22.81 4.02 22.48 3.65C22.15 3.29 21.69 3.06 21.20 3.01ZM3 15V5H21V15H3ZM3 19V17H21V19H3Z"/></svg>
+            <button onClick={onToggleCinema} title="Cinema" className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${cinemaMode ? 'text-accent' : 'text-white/60 hover:text-white'}`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21.20 3.01L21 3H3L2.79 3.01C2.30 3.06 1.84 3.29 1.51 3.65C1.18 4.02 .99 4.50 1 5V19L1.01 19.20C1.05 19.66 1.26 20.08 1.58 20.41C1.91 20.73 2.33 20.94 2.79 20.99L3 21H21L21.20 20.98C21.66 20.94 22.08 20.73 22.41 20.41C22.73 20.08 22.94 19.66 22.99 19.20L23 19V5C23.00 4.50 22.81 4.02 22.48 3.65C22.15 3.29 21.69 3.06 21.20 3.01ZM3 15V5H21V15H3ZM3 19V17H21V19H3Z"/></svg>
             </button>
           </div>
 
@@ -876,12 +847,12 @@ export default function VideoPlayer({
           <button
             onClick={toggleFullscreen}
             title={isFullscreen ? 'Esci' : 'Fullscreen'}
-            className="w-7 h-7 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors flex-shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded text-white/70 hover:text-white transition-colors flex-shrink-0"
           >
             {isFullscreen ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
             )}
           </button>
 
