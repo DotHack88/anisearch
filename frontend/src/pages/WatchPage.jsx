@@ -36,6 +36,22 @@ export default function WatchPage() {
   const [cinemaMode, setCinemaMode] = useState(() => localStorage.getItem('cinema_mode') === 'true')
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
+  const playerWrapperRef = useRef(null)
+  const [isSticky, setIsSticky] = useState(false)
+
+  // Sticky mini-player on scroll (YouTube-style)
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!playerWrapperRef.current || cinemaMode) {
+        setIsSticky(false)
+        return
+      }
+      const rect = playerWrapperRef.current.getBoundingClientRect()
+      setIsSticky(rect.bottom < 80)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [cinemaMode])
 
   useEffect(() => {
     localStorage.setItem('cinema_mode', cinemaMode)
@@ -521,8 +537,19 @@ export default function WatchPage() {
         {/* Video Player */}
         <div className={`transition-all duration-500 ${cinemaMode ? 'lg:col-span-4' : 'lg:col-span-3'} space-y-4`}>
 
-          {/* Wrapper container for z-indexing over the Lights Off backdrop and mounting the Ambilight canvas */}
-          <div className={`relative transition-all duration-500 rounded-2xl ${lightsOff ? 'z-50 shadow-2xl shadow-accent/10' : 'z-10'}`}>
+          {/* Anchor to prevent layout shift and measure scroll accurately */}
+          <div ref={playerWrapperRef} className={!cinemaMode ? "w-full" : "w-full flex justify-center"} style={!cinemaMode ? { aspectRatio: '16/9' } : {}}>
+            {/* Sticky Container */}
+            <div
+              className={`transition-all duration-300 rounded-2xl ${
+                lightsOff ? 'z-50 shadow-2xl shadow-accent/10' : 'z-10'
+              } ${
+                isSticky
+                  ? 'fixed bottom-4 right-4 z-[9999] w-[340px] shadow-2xl rounded-xl border border-white/20'
+                  : 'relative w-full'
+              }`}
+              style={isSticky ? { aspectRatio: '16/9' } : {}}
+            >
 
             {/* Ambilight Canvas — only bleed on sides/bottom, NOT top (avoids red line above player) */}
             {ambilightActive && !loading && !error && (
@@ -591,6 +618,7 @@ export default function WatchPage() {
                 />
               )}
             </div>
+          </div>
           </div>
 
         </div>

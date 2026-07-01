@@ -64,7 +64,6 @@ export default function VideoPlayer({
   const [aspectRatio, setAspectRatio] = useState('default') // 'default' (contain), '16-9' (contain-16:9), '4-3', 'stretch'
   const [showStats, setShowStats] = useState(false)
   const [videoResolution, setVideoResolution] = useState({ w: 0, h: 0 })
-  const [isSticky, setIsSticky] = useState(false)
   const [introDismissed, setIntroDismissed] = useState(false)
   const [showSkipBackFeedback, setShowSkipBackFeedback] = useState(false)
   const [showSkipForwardFeedback, setShowSkipForwardFeedback] = useState(false)
@@ -134,29 +133,16 @@ export default function VideoPlayer({
     }
   }, [src])
 
-  // Click outside to dismiss context menu & sticky on scroll listener
+  // Click outside to dismiss context menu
   useEffect(() => {
     const handleGlobalClick = () => {
       if (contextMenu.visible) setContextMenu(prev => ({ ...prev, visible: false }))
       if (showSpeedMenu) setShowSpeedMenu(false)
       if (showQualityMenu) setShowQualityMenu(false)
     }
-    
-    const handleScroll = () => {
-      if (!containerRef.current || isWebFS || isFullscreen) return
-      const rect = containerRef.current.getBoundingClientRect()
-      // If the top of the video container goes above viewport AND bottom goes above center viewport
-      const shouldBeSticky = rect.bottom < 150
-      setIsSticky(shouldBeSticky)
-    }
-
     window.addEventListener('click', handleGlobalClick)
-    window.addEventListener('scroll', handleScroll)
-    return () => {
-      window.removeEventListener('click', handleGlobalClick)
-      window.removeEventListener('scroll', handleScroll)
-    }
-  }, [contextMenu.visible, showSpeedMenu, showQualityMenu, isWebFS, isFullscreen])
+    return () => window.removeEventListener('click', handleGlobalClick)
+  }, [contextMenu.visible, showSpeedMenu, showQualityMenu])
 
   // Skip Intro auto-dismiss logic (dismisses after 5 seconds of visibility)
   useEffect(() => {
@@ -545,10 +531,8 @@ export default function VideoPlayer({
     <div
       ref={containerRef}
       onContextMenu={handleContextMenu}
-      className={`video-player-container bg-black overflow-hidden select-none transition-all duration-300 
-        ${isWebFS ? 'w-full' : ''} 
-        ${isSticky ? 'fixed bottom-4 right-4 z-[9999] w-[340px] shadow-2xl rounded-xl border border-white/20' : 'relative w-full rounded-2xl'}`}
-      style={isSticky ? { aspectRatio: '16/9' } : (isWebFS ? {} : { aspectRatio: '16/9' })}
+      className={`video-player-container relative bg-black overflow-hidden select-none transition-all duration-300 w-full rounded-2xl ${isWebFS ? '' : ''}`}
+      style={isWebFS ? {} : { aspectRatio: '16/9' }}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => {
         if (isPlaying) setShowControls(false)
@@ -953,7 +937,7 @@ export default function VideoPlayer({
           </div>
 
           {/* Icon cluster — hidden on mobile */}
-          <div className={`items-center gap-1 bg-black/30 rounded-lg px-1 py-1 hidden sm:flex flex-shrink-0 ${isSticky ? '!hidden' : ''}`}>
+          <div className="items-center gap-1 bg-black/30 rounded-lg px-1 py-1 hidden sm:flex flex-shrink-0">
             <button onClick={takeScreenshot} title="Screenshot" className="w-8 h-8 flex items-center justify-center rounded text-white/60 hover:text-white transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </button>
