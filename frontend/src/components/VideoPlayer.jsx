@@ -545,9 +545,9 @@ export default function VideoPlayer({
     <div
       ref={containerRef}
       onContextMenu={handleContextMenu}
-      className={`video-player-container relative bg-black overflow-hidden select-none transition-all duration-300 
+      className={`video-player-container bg-black overflow-hidden select-none transition-all duration-300 
         ${isWebFS ? 'w-full' : ''} 
-        ${isSticky ? 'fixed bottom-4 right-4 z-[9999] w-[340px] shadow-2xl rounded-xl border border-white/20' : 'w-full rounded-2xl'}`}
+        ${isSticky ? 'fixed bottom-4 right-4 z-[9999] w-[340px] shadow-2xl rounded-xl border border-white/20' : 'relative w-full rounded-2xl'}`}
       style={isSticky ? { aspectRatio: '16/9' } : (isWebFS ? {} : { aspectRatio: '16/9' })}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => {
