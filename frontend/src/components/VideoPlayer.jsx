@@ -30,6 +30,7 @@ export default function VideoPlayer({
   ambilightActive,
   onToggleAmbilight,
 }) {
+  const isWebFS = cinemaMode
   const internalRef = useRef(null)
   const videoRef = externalVideoRef || internalRef
   const containerRef = useRef(null)
@@ -539,9 +540,6 @@ export default function VideoPlayer({
   }
 
   const progress = duration ? (currentTime / duration) * 100 : 0
-
-  // Detect if we are in cinema mode or fullscreen
-  const isWebFS = cinemaMode
 
   return (
     <div
