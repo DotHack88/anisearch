@@ -68,6 +68,8 @@ export default function VideoPlayer({
   const [showSkipBackFeedback, setShowSkipBackFeedback] = useState(false)
   const [showSkipForwardFeedback, setShowSkipForwardFeedback] = useState(false)
   const lastClickTimeRef = useRef(0)
+  const lastTouchTimeRef = useRef(0)
+  const isTouchRef = useRef(false)
 
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
@@ -101,6 +103,8 @@ export default function VideoPlayer({
     const onRateChange = () => setPlaybackRate(v.playbackRate)
     const onPiPEnter = () => setIsPiP(true)
     const onPiPLeave = () => setIsPiP(false)
+    const onWebKitBeginFS = () => setIsFullscreen(true)
+    const onWebKitEndFS = () => setIsFullscreen(false)
 
     v.addEventListener('play', onPlay)
     v.addEventListener('pause', onPause)
@@ -111,6 +115,8 @@ export default function VideoPlayer({
     v.addEventListener('ratechange', onRateChange)
     v.addEventListener('enterpictureinpicture', onPiPEnter)
     v.addEventListener('leavepictureinpicture', onPiPLeave)
+    v.addEventListener('webkitbeginfullscreen', onWebKitBeginFS)
+    v.addEventListener('webkitendfullscreen', onWebKitEndFS)
 
     return () => {
       v.removeEventListener('play', onPlay)
@@ -122,6 +128,8 @@ export default function VideoPlayer({
       v.removeEventListener('ratechange', onRateChange)
       v.removeEventListener('enterpictureinpicture', onPiPEnter)
       v.removeEventListener('leavepictureinpicture', onPiPLeave)
+      v.removeEventListener('webkitbeginfullscreen', onWebKitBeginFS)
+      v.removeEventListener('webkitendfullscreen', onWebKitEndFS)
     }
   }, [src])
 
@@ -129,6 +137,8 @@ export default function VideoPlayer({
   useEffect(() => {
     const handleGlobalClick = () => {
       if (contextMenu.visible) setContextMenu(prev => ({ ...prev, visible: false }))
+      if (showSpeedMenu) setShowSpeedMenu(false)
+      if (showQualityMenu) setShowQualityMenu(false)
     }
     
     const handleScroll = () => {
@@ -145,7 +155,7 @@ export default function VideoPlayer({
       window.removeEventListener('click', handleGlobalClick)
       window.removeEventListener('scroll', handleScroll)
     }
-  }, [contextMenu.visible])
+  }, [contextMenu.visible, showSpeedMenu, showQualityMenu, isWebFS, isFullscreen])
 
   // Skip Intro auto-dismiss logic (dismisses after 5 seconds of visibility)
   useEffect(() => {
@@ -169,9 +179,24 @@ export default function VideoPlayer({
 
   // Fullscreen change listener
   useEffect(() => {
-    const onFSChange = () => setIsFullscreen(!!document.fullscreenElement)
+    const onFSChange = () => {
+      setIsFullscreen(
+        !!(document.fullscreenElement || 
+           document.webkitFullscreenElement || 
+           document.mozFullScreenElement || 
+           document.msFullscreenElement)
+      )
+    }
     document.addEventListener('fullscreenchange', onFSChange)
-    return () => document.removeEventListener('fullscreenchange', onFSChange)
+    document.addEventListener('webkitfullscreenchange', onFSChange)
+    document.addEventListener('mozfullscreenchange', onFSChange)
+    document.addEventListener('MSFullscreenChange', onFSChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFSChange)
+      document.removeEventListener('webkitfullscreenchange', onFSChange)
+      document.removeEventListener('mozfullscreenchange', onFSChange)
+      document.removeEventListener('MSFullscreenChange', onFSChange)
+    }
   }, [])
 
   // Auto-hide controls
@@ -215,7 +240,44 @@ export default function VideoPlayer({
     setTimeout(() => setShowSkipForwardFeedback(false), 500)
   }, [videoRef])
 
+  const handleVideoTouchStart = (e) => {
+    isTouchRef.current = true
+    if (e.touches.length !== 1) return
+    const touch = e.touches[0]
+    const rect = e.currentTarget.getBoundingClientRect()
+    const touchX = touch.clientX - rect.left
+    const width = rect.width
+    const currentTimeStamp = Date.now()
+
+    if (currentTimeStamp - lastTouchTimeRef.current < 300) {
+      e.preventDefault() // prevent simulated click
+      if (touchX < width / 2) {
+        skipBackward(10)
+      } else {
+        skipForward(10)
+      }
+      lastTouchTimeRef.current = 0
+    } else {
+      lastTouchTimeRef.current = currentTimeStamp
+    }
+  }
+
   const handleVideoClick = (e) => {
+    // Close speed/quality menus if open
+    if (showSpeedMenu || showQualityMenu) {
+      setShowSpeedMenu(false)
+      setShowQualityMenu(false)
+      return
+    }
+
+    if (isTouchRef.current) {
+      // On mobile/iOS, tap on video toggles controls visibility
+      setShowControls(prev => !prev)
+      resetHideTimer()
+      isTouchRef.current = false // reset flag
+      return
+    }
+
     const rect = e.currentTarget.getBoundingClientRect()
     const clickX = e.clientX - rect.left
     const width = rect.width
@@ -302,6 +364,37 @@ export default function VideoPlayer({
     setThumbSrc(null)
   }
 
+  const handleTouchStart = (e) => {
+    setIsDragging(true)
+    handleProgressTouch(e)
+  }
+
+  const handleTouchMove = (e) => {
+    handleProgressTouch(e)
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+    setThumbPos(null)
+    setThumbSrc(null)
+  }
+
+  const handleProgressTouch = (e) => {
+    if (!progressRef.current || !duration) return
+    const rect = progressRef.current.getBoundingClientRect()
+    const touch = e.touches[0]
+    if (!touch) return
+    const clientX = touch.clientX
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    const time = ratio * duration
+    const x = clientX - rect.left
+
+    setThumbPos({ x, time })
+
+    if (videoRef.current) videoRef.current.currentTime = time
+    setCurrentTime(time)
+  }
+
   // Volume
   const handleVolumeChange = (e) => {
     const val = parseFloat(e.target.value)
@@ -347,11 +440,26 @@ export default function VideoPlayer({
   // Fullscreen
   const toggleFullscreen = () => {
     const el = containerRef.current
-    if (!el) return
-    if (!document.fullscreenElement) {
-      el.requestFullscreen().catch(() => {})
-    } else {
-      document.exitFullscreen().catch(() => {})
+    const v = videoRef.current
+    if (!el || !v) return
+
+    if (el.requestFullscreen) {
+      if (!document.fullscreenElement) {
+        el.requestFullscreen().catch(() => {})
+      } else {
+        document.exitFullscreen().catch(() => {})
+      }
+    } else if (el.webkitRequestFullscreen) {
+      if (!document.webkitFullscreenElement) {
+        el.webkitRequestFullscreen().catch(() => {})
+      } else {
+        document.webkitExitFullscreen().catch(() => {})
+      }
+    } else if (v.webkitEnterFullscreen) {
+      // Fallback for iOS Safari on iPhone
+      v.webkitEnterFullscreen()
+    } else if (v.requestFullscreen) {
+      v.requestFullscreen().catch(() => {})
     }
   }
 
@@ -463,11 +571,24 @@ export default function VideoPlayer({
         crossOrigin="anonymous"
         className="block"
         style={{ ...getAspectRatioStyle(), ...getQualityStyles() }}
+        onTouchStart={handleVideoTouchStart}
         onClick={handleVideoClick}
         onEnded={onEnded}
       />
 
-      {/* Double Tap Skip Feedback Overlays — only right side */}
+      {/* Double Tap Skip Feedback Overlays */}
+      <div
+        className={`absolute left-0 top-0 bottom-0 w-1/3 bg-gradient-to-r from-white/10 to-transparent flex flex-col items-center justify-center pointer-events-none z-30 transition-all duration-300 rounded-r-full ${
+          showSkipBackFeedback ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+        }`}
+      >
+        <div className="bg-black/60 p-4 rounded-full flex flex-col items-center justify-center shadow-2xl border border-white/10">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white animate-pulse">
+            <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
+          </svg>
+          <span className="text-white text-xs font-bold mt-1">-10s</span>
+        </div>
+      </div>
 
       <div
         className={`absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-white/10 to-transparent flex flex-col items-center justify-center pointer-events-none z-30 transition-all duration-300 rounded-l-full ${
@@ -690,6 +811,9 @@ export default function VideoPlayer({
             onMouseLeave={handleProgressLeave}
             onMouseDown={() => setIsDragging(true)}
             onMouseUp={() => setIsDragging(false)}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             {/* Buffer bar */}
             <div
@@ -772,13 +896,16 @@ export default function VideoPlayer({
           {/* Speed */}
           <div className="relative flex-shrink-0">
             <button
-              onClick={() => { setShowSpeedMenu(v => !v); setShowQualityMenu(false) }}
+              onClick={(e) => { e.stopPropagation(); setShowSpeedMenu(v => !v); setShowQualityMenu(false) }}
               className="text-white hover:text-accent transition-colors text-xs font-bold px-2 py-1 rounded border border-white/20 hover:border-accent/50 whitespace-nowrap leading-tight"
             >
               {playbackRate}x
             </button>
             {showSpeedMenu && (
-              <div className="absolute bottom-9 right-0 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50">
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-9 right-0 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
+              >
                 {speeds.map(s => (
                   <button
                     key={s}
@@ -795,7 +922,7 @@ export default function VideoPlayer({
           {/* Quality */}
           <div className="relative flex-shrink-0">
             <button
-              onClick={() => { setShowQualityMenu(v => !v); setShowSpeedMenu(false) }}
+              onClick={(e) => { e.stopPropagation(); setShowQualityMenu(v => !v); setShowSpeedMenu(false) }}
               className="text-white hover:text-accent transition-colors text-xs font-bold px-2 py-1 rounded border border-white/20 hover:border-accent/50 bg-white/5 flex items-center gap-1 whitespace-nowrap leading-tight"
             >
               <span className="hidden sm:inline max-w-[80px] truncate">{getQualityLabel()}</span>
@@ -805,7 +932,10 @@ export default function VideoPlayer({
               <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             {showQualityMenu && (
-              <div className="absolute bottom-9 right-0 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 min-w-[130px]">
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-9 right-0 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 min-w-[130px]"
+              >
                 {[
                   { id: 'auto', label: 'Auto (Sorgente)' },
                   { id: 'upscale', label: 'Upscale 1080p' },
