@@ -971,15 +971,40 @@ export default function VideoPlayer({
         </div>
       </div>
 
-      {/* Big play button center overlay when paused */}
-      {!isPlaying && !isBuffering && autoplayCount === null && (
+      {/* Central Play/Stop Overlay */}
+      {!isBuffering && autoplayCount === null && (
         <div
-          className="absolute inset-0 flex items-center justify-center z-10 cursor-pointer"
-          onClick={togglePlay}
+          className={`absolute inset-0 flex items-center justify-center z-10 transition-all duration-300 ${
+            showControls || !isPlaying ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+          }`}
+          onClick={(e) => {
+            if (isPlaying) {
+              setShowControls(false)
+            } else {
+              togglePlay()
+            }
+          }}
         >
-          <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-accent/80 hover:border-accent transition-all duration-300 hover:scale-110 shadow-2xl">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              togglePlay()
+            }}
+            className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-accent/80 hover:border-accent transition-all duration-300 hover:scale-110 shadow-2xl cursor-pointer"
+          >
+            {isPlaying ? (
+              // Stop/Pause Icon
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            ) : (
+              // Play Icon
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            )}
+          </button>
         </div>
       )}
     </div>
