@@ -91,4 +91,71 @@ export const updateWatchlist = async (animeId: string, status: string, episodesW
   (await api.put(`/watchlist/${animeId}`, null, { params: { status, ...(episodesWatched != null && { episodes_watched: episodesWatched }), ...(episodesTotal != null && { episodes_total: episodesTotal }), ...(notes != null && { notes }) } })).data
 export const removeWatchlistApi = async (animeId: string) => (await api.delete(`/watchlist/${animeId}`)).data
 
+
+// ---------------- MANGA API ----------------
+
+export interface Manga {
+  id: string;
+  title: string;
+  url: string;
+  image: string;
+  type: string;
+  status: string;
+  year: string | null;
+  rating: string | null;
+  genres: string[];
+}
+
+export interface Chapter {
+  id: string;
+  manga_id: string;
+  title: string;
+  number: number;
+  volume?: number;
+  url: string;
+}
+
+export interface MangaCatalogResponse {
+  items: Manga[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+export interface MangaWatchlistItem extends Manga {
+  watchlist_status: string;
+  chapters_read: number;
+  chapters_total: number | null;
+  notes: string | null;
+  added_at: string | null;
+  last_update: string | null;
+}
+
+export const searchManga = async (q: string) => (await api.get<{results: Manga[]}>('/manga/search', { params: { q } })).data.results
+export const getMangaDetail = async (id: string) => (await api.get<Manga & { chapters: Chapter[], description?: string, author?: string, artist?: string }>(`/manga/${id}`)).data
+export const getMangaCatalog = async (params: Record<string, unknown>) => (await api.get<MangaCatalogResponse>('/manga/catalog', { params })).data
+export const getChapterImages = async (chapterId: string) => (await api.get<{ chapter_id: string, images: string[] }>(`/manga/chapter/${chapterId}/images`)).data
+
+export const saveMangaWatchProgress = async (mangaId: string, chapterId: string) => (await api.post(`/manga-watch/${mangaId}`, null, { params: { chapter_id: chapterId } })).data;
+export const getMangaWatchProgress = async (mangaId: string) => (await api.get(`/manga-watch/${mangaId}`)).data
+export const getRecentMangaWatchProgress = async () => {
+  const data = (await api.get('/manga-watch')).data
+  return Array.isArray(data) ? data : []
+}
+
+export const getMangaFavorites = async () => (await api.get<Manga[]>('/manga-favorites')).data
+export const addMangaFavorite = async (mangaId: string) => (await api.post(`/manga-favorites/${mangaId}`)).data
+export const removeMangaFavoriteApi = async (mangaId: string) => (await api.delete(`/manga-favorites/${mangaId}`)).data
+
+export const getMangaWatchlist = async (status?: string) => {
+  const data = (await api.get<MangaWatchlistItem[]>('/manga-watchlist', { params: status ? { status } : {} })).data
+  return Array.isArray(data) ? data : []
+}
+export const addMangaWatchlist = async (mangaId: string, status: string = 'da_leggere', chaptersRead?: number, chaptersTotal?: number, notes?: string) =>
+  (await api.post(`/manga-watchlist/${mangaId}`, null, { params: { status, ...(chaptersRead != null && { chapters_read: chaptersRead }), ...(chaptersTotal != null && { chapters_total: chaptersTotal }), ...(notes != null && { notes }) } })).data
+export const updateMangaWatchlist = async (mangaId: string, status: string, chaptersRead?: number, chaptersTotal?: number, notes?: string) =>
+  (await api.put(`/manga-watchlist/${mangaId}`, null, { params: { status, ...(chaptersRead != null && { chapters_read: chaptersRead }), ...(chaptersTotal != null && { chapters_total: chaptersTotal }), ...(notes != null && { notes }) } })).data
+export const removeMangaWatchlistApi = async (mangaId: string) => (await api.delete(`/manga-watchlist/${mangaId}`)).data
+
 export default api

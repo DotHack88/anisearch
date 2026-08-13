@@ -12,6 +12,9 @@ import WatchlistPage from './pages/WatchlistPage.jsx'
 import WatchPage from './pages/WatchPage.jsx'
 import DownloadsPage from './pages/DownloadsPage.jsx'
 import NewEpisodesPage from './pages/NewEpisodesPage.jsx'
+import MangaList from './pages/MangaList.jsx'
+import MangaDetail from './pages/MangaDetail.jsx'
+import MangaReader from './pages/MangaReader.jsx'
 
 // Mostra il loader una sola volta per sessione browser
 const hasSeenLoader = sessionStorage.getItem('anisearch_loader_seen')
@@ -40,6 +43,11 @@ export default function App() {
             <Route path="/watchlist"     element={<WatchlistPage />} />
             <Route path="/downloads"     element={<DownloadsPage />} />
             <Route path="/nuovi-episodi" element={<NewEpisodesPage />} />
+            
+            <Route path="/manga/catalog" element={<MangaList />} />
+            <Route path="/manga/:id" element={<MangaDetail />} />
+            <Route path="/manga/read/:mangaId/:chapterId" element={<MangaReader />} />
+
             <Route path="*" element={
               <div className="flex flex-col items-center justify-center min-h-[70vh] text-center page-enter">
                 <p className="font-display text-8xl text-accent mb-4">404</p>

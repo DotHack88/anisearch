@@ -4,7 +4,7 @@ import SearchBar from '../components/SearchBar.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
 import LatestEpisodes from '../components/LatestEpisodes.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
-import { getStatus, getRecentWatchProgress, deleteWatchProgress } from '../utils/api'
+import { getStatus, getRecentWatchProgress, deleteWatchProgress, getRecentMangaWatchProgress } from '../utils/api'
 
 function AnimatedCounter({ value }) {
   const [count, setCount] = useState(0)
@@ -52,6 +52,7 @@ export default function Home() {
   const { favorites, removeFavorite } = useFavorites()
   const [status, setStatus] = useState(null)
   const [recentWatch, setRecentWatch] = useState([])
+  const [recentMangaRead, setRecentMangaRead] = useState([])
 
   useEffect(() => {
     const fetchStatus = () => {
@@ -65,6 +66,10 @@ export default function Home() {
     getRecentWatchProgress()
       .then(setRecentWatch)
       .catch(err => console.error('Error fetching watch progress:', err))
+
+    getRecentMangaWatchProgress()
+      .then(setRecentMangaRead)
+      .catch(() => {})
 
     return () => clearInterval(statusInterval)
   }, [])
@@ -188,6 +193,61 @@ export default function Home() {
                   <p className="text-[10px] text-muted font-body mt-0.5">
                     Ultimo riprodotto
                   </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Continua a Leggere */}
+      {recentMangaRead.length > 0 && (
+        <section className="max-w-6xl mx-auto w-full px-4 pb-12">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display text-2xl tracking-wide text-text flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              CONTINUA A LEGGERE
+            </h2>
+            <Link to="/manga/catalog" className="text-xs text-muted hover:text-accent font-body transition-colors">Catalogo Manga →</Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {recentMangaRead.map(item => (
+              <Link
+                key={item.manga_id}
+                to={`/manga/read/${item.manga_id}/${item.chapter_id}`}
+                state={{ mangaTitle: item.manga_title, mangaImage: item.manga_image }}
+                className="group relative bg-card/40 border border-border/50 rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:border-accent/40 hover:-translate-y-1 transition-all duration-300 backdrop-blur-sm"
+              >
+                {/* Poster */}
+                <div className="aspect-[2/3] w-full overflow-hidden bg-surface relative">
+                  <img
+                    src={item.manga_image}
+                    alt={item.manga_title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={e => { e.target.style.display = 'none' }}
+                  />
+                  {/* Book icon overlay */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                    <div className="w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
+                    </div>
+                  </div>
+                  {/* Badge Capitolo */}
+                  {item.chapter_number && (
+                    <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/75 text-white rounded-md text-[10px] font-bold font-body backdrop-blur-sm border border-white/10">
+                      Cap. {item.chapter_number}
+                    </span>
+                  )}
+                </div>
+                {/* Title */}
+                <div className="p-3">
+                  <h3 className="font-semibold text-xs text-text font-body truncate group-hover:text-accent transition-colors">
+                    {item.manga_title}
+                  </h3>
+                  <p className="text-[10px] text-muted font-body mt-0.5">Ultima lettura</p>
                 </div>
               </Link>
             ))}

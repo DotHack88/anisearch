@@ -85,14 +85,63 @@ class Watchlist(SQLModel, table=True):
     last_update: Optional[str] = None
     completed_at: Optional[str] = None
 
+# ---------- Manga Models ----------
+class Manga(SQLModel, table=True):
+    id: Optional[str] = Field(default=None, primary_key=True)
+    title: str = Field(default="")
+    url: str = Field(default="")
+    image: Optional[str] = Field(default=None)
+    type: Optional[str] = Field(default=None)
+    status: Optional[str] = Field(default=None)
+    year: Optional[str] = Field(default=None)
+    rating: Optional[str] = Field(default=None)
+    genres: Optional[str] = Field(default=None)  # JSON string stored in TEXT column
+
+class Chapter(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    manga_id: str = Field(foreign_key="manga.id")
+    title: Optional[str] = None
+    url: Optional[str] = None
+    volume: Optional[int] = None
+    chapter: Optional[float] = None
+    added_at: Optional[str] = None
+
+class MangaProgress(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    manga_id: str = Field(primary_key=True, foreign_key="manga.id")
+    chapter_id: str = Field(foreign_key="chapter.id")
+    updated_at: Optional[str] = None
+
+class MangaFavorite(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    manga_id: str = Field(primary_key=True, foreign_key="manga.id")
+    added_at: Optional[str] = None
+
+class MangaWatchlist(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    manga_id: str = Field(primary_key=True, foreign_key="manga.id")
+    # stati: "da_leggere" | "in_lettura" | "completato" | "in_pausa" | "abbandonato"
+    status: str = Field(default="da_leggere")
+    chapters_read: Optional[int] = Field(default=0)
+    chapters_total: Optional[int] = Field(default=None)
+    notes: Optional[str] = Field(default=None)
+    added_at: Optional[str] = None
+    last_update: Optional[str] = None
+    completed_at: Optional[str] = None
+
 # ---------- Helper ----------
 def _parse_genres(genres_str: Optional[str]) -> List[str]:
     if not genres_str:
         return []
     try:
-        return json.loads(genres_str)
+        parsed = json.loads(genres_str)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, str):
+            return [g.strip() for g in parsed.replace(",", " ").split() if g.strip()]
     except Exception:
-        return []
+        pass
+    return [g.strip() for g in genres_str.replace(",", " ").split() if g.strip()]
 
 def _serialize_genres(genres: List[str]) -> str:
     return json.dumps(genres)
@@ -135,7 +184,14 @@ class AnimeDatabase:
     async def clear(self) -> None:
         await self._ensure_init()
         async with AsyncSession(engine) as session:
+            await session.exec(delete(MangaProgress))
+            await session.exec(delete(MangaFavorite))
+            await session.exec(delete(MangaWatchlist))
+            await session.exec(delete(Chapter))
+            await session.exec(delete(Manga))
             await session.exec(delete(WatchProgress))
+            await session.exec(delete(Favorite))
+            await session.exec(delete(Watchlist))
             await session.exec(delete(Episode))
             await session.exec(delete(Anime))
             await session.commit()
@@ -634,4 +690,373 @@ class AnimeDatabase:
                 "abbandonati": abbandonati,
                 "completamento_globale": global_pct,
             }
+
+
+class MangaDatabase:
+    def __init__(self):
+        self._initialized = False
+
+    async def _ensure_init(self) -> None:
+        """Lazy init: create tables on first async call."""
+        if self._initialized:
+            return
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+        self._initialized = True
+
+    # ----- Manga -----
+    async def add_batch(self, manga_list: List[Dict], mode: str = "replace") -> None:
+        await self._ensure_init()
+        if not manga_list:
+            return
+
+        rows = [
+            {
+                "id": m.get("id"),
+                "title": m.get("title", ""),
+                "url": m.get("url", ""),
+                "image": m.get("image", ""),
+                "type": m.get("type", ""),
+                "status": m.get("status", ""),
+                "year": m.get("year", ""),
+                "rating": m.get("rating", ""),
+                "genres": _serialize_genres(m.get("genres", [])),
+            }
+            for m in manga_list
+            if m.get("id")
+        ]
+        if not rows:
+            return
+
+        seen_ids = set()
+        deduped_rows = []
+        for r in rows:
+            if r["id"] not in seen_ids:
+                seen_ids.add(r["id"])
+                deduped_rows.append(r)
+        rows = deduped_rows
+
+        async with engine.begin() as conn:
+            dialect_name = engine.dialect.name
+            if dialect_name == "postgresql":
+                stmt = pg_insert(Manga).values(rows)
+                if mode == "ignore":
+                    stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
+                else:
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["id"],
+                        set_={
+                            "title": stmt.excluded.title,
+                            "url": stmt.excluded.url,
+                            "image": stmt.excluded.image,
+                            "type": stmt.excluded.type,
+                            "status": stmt.excluded.status,
+                            "year": stmt.excluded.year,
+                            "rating": stmt.excluded.rating,
+                            "genres": stmt.excluded.genres,
+                        },
+                    )
+            else:
+                stmt = sqlite_insert(Manga).values(rows)
+                if mode == "ignore":
+                    stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
+                else:
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["id"],
+                        set_={
+                            "title": stmt.excluded.title,
+                            "url": stmt.excluded.url,
+                            "image": stmt.excluded.image,
+                            "type": stmt.excluded.type,
+                            "status": stmt.excluded.status,
+                            "year": stmt.excluded.year,
+                            "rating": stmt.excluded.rating,
+                            "genres": stmt.excluded.genres,
+                        },
+                    )
+            await conn.execute(stmt)
+
+    async def get_by_id(self, manga_id: str) -> Optional[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Manga).where(Manga.id == manga_id))
+            manga = result.one_or_none()
+            return _row_to_dict(manga) if manga else None
+
+    async def get_all_genres(self) -> List[str]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(Manga.genres))
+            all_genres = set()
+            for g in result.all():
+                all_genres.update(_parse_genres(g))
+            return sorted(all_genres)
+
+    async def get_all(
+        self,
+        page: int = 0,
+        per_page: int = 50,
+        sort_by: str = "title",
+        genre: str = "",
+        status: str = "",
+        search: str = "",
+    ) -> dict:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = select(Manga)
+            if search:
+                stmt = stmt.where(func.lower(Manga.title).like(func.lower(f"%{search}%")))
+            if genre:
+                stmt = stmt.where(Manga.genres.like(f'%"{genre}"%'))  # type: ignore
+            if status:
+                stmt = stmt.where(Manga.status == status)
+                
+            if sort_by == "title":
+                stmt = stmt.order_by(Manga.title.asc())  # type: ignore
+            elif sort_by == "year":
+                stmt = stmt.order_by(Manga.year.desc())  # type: ignore
+            
+            count_stmt = select(func.count()).select_from(stmt.subquery())
+            total_res = await session.exec(count_stmt)
+            total = total_res.one()
+            
+            stmt = stmt.offset(page * per_page).limit(per_page)
+            rows = await session.exec(stmt)
+            items = [_row_to_dict(r) for r in rows.all()]
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
+            }
+
+    # ----- Chapters -----
+    async def add_chapters(self, chapters: List[Dict]) -> None:
+        await self._ensure_init()
+        if not chapters:
+            return
+
+        def _to_float(value):
+            if value is None: return None
+            try: return float(value)
+            except: return None
+            
+        def _to_int(value):
+            if value is None: return None
+            try: return int(value)
+            except: return None
+
+        rows = [
+            {
+                "id": ch.get("id"),
+                "manga_id": ch.get("manga_id"),
+                "title": ch.get("title", ""),
+                "url": ch.get("url", ""),
+                "volume": _to_int(ch.get("volume")),
+                "chapter": _to_float(ch.get("chapter") or ch.get("number")),
+                "added_at": ch.get("added_at"),
+            }
+            for ch in chapters
+            if ch.get("id") and ch.get("manga_id")
+        ]
+        if not rows:
+            return
+
+        seen_ids = set()
+        deduped_rows = []
+        for r in rows:
+            if r["id"] not in seen_ids:
+                seen_ids.add(r["id"])
+                deduped_rows.append(r)
+        rows = deduped_rows
+
+        async with engine.begin() as conn:
+            dialect_name = engine.dialect.name
+            if dialect_name == "postgresql":
+                stmt = pg_insert(Chapter).values(rows).on_conflict_do_nothing(index_elements=["id"])
+            else:
+                stmt = sqlite_insert(Chapter).values(rows).on_conflict_do_nothing(index_elements=["id"])
+            await conn.execute(stmt)
+
+    async def get_recent_chapters(self, limit: int = 20) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(Chapter, Manga.title.label("manga_title"), Manga.image.label("manga_image"))  # type: ignore
+                .join(Manga, Chapter.manga_id == Manga.id)  # type: ignore
+                .order_by(Chapter.added_at.desc())  # type: ignore
+                .limit(limit)
+            )
+            result = await session.exec(stmt)
+            rows = result.all()
+            chapters = []
+            for row in rows:
+                if hasattr(row, '_asdict'):
+                    chapters.append(row._asdict())
+                elif isinstance(row, tuple) and len(row) >= 1:
+                    obj = row[0]
+                    ch = obj.model_dump()
+                    if len(row) > 1:
+                        ch["manga_title"] = row[1]
+                    if len(row) > 2:
+                        ch["manga_image"] = row[2]
+                    chapters.append(ch)
+            return chapters
+
+    # ----- Watch Progress (Reading) -----
+    async def save_progress(self, session_id: str, manga_id: str, chapter_id: str) -> None:
+        import datetime
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(MangaProgress).where(MangaProgress.manga_id == manga_id, MangaProgress.session_id == session_id))  # type: ignore
+            wp = result.one_or_none()
+            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            if wp:
+                wp.chapter_id = chapter_id
+                wp.updated_at = now_str
+            else:
+                wp = MangaProgress(session_id=session_id, manga_id=manga_id, chapter_id=chapter_id, updated_at=now_str)
+                session.add(wp)
+            await session.commit()
+
+    async def get_progress(self, session_id: str, manga_id: str) -> Optional[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(MangaProgress).where(MangaProgress.manga_id == manga_id, MangaProgress.session_id == session_id))  # type: ignore
+            wp = result.one_or_none()
+            if wp:
+                return {"chapter_id": wp.chapter_id, "updated_at": wp.updated_at}
+            return None
+
+    async def get_recent_progress(self, session_id: str, limit: int = 10) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(MangaProgress, Manga.title.label("manga_title"), Manga.image.label("manga_image"), Chapter.chapter.label("chapter_number"))  # type: ignore
+                .outerjoin(Manga, MangaProgress.manga_id == Manga.id)  # type: ignore
+                .outerjoin(Chapter, MangaProgress.chapter_id == Chapter.id)  # type: ignore
+                .where(MangaProgress.session_id == session_id)  # type: ignore
+                .order_by(MangaProgress.updated_at.desc())  # type: ignore
+                .limit(limit)
+            )
+            result = await session.exec(stmt)
+            rows = result.all()
+            progresses = []
+            for row in rows:
+                wp_obj = row[0]
+                wp_dict = wp_obj.model_dump()
+                wp_dict["manga_title"] = row[1] or f"Manga {wp_obj.manga_id}"
+                wp_dict["manga_image"] = row[2] or ""
+                wp_dict["chapter_number"] = row[3] or "?"
+                progresses.append(wp_dict)
+            return progresses
+
+    # ----- Favorites -----
+    async def save_favorite(self, session_id: str, manga_id: str) -> None:
+        import datetime
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(MangaFavorite).where(MangaFavorite.manga_id == manga_id, MangaFavorite.session_id == session_id))  # type: ignore
+            fav = result.one_or_none()
+            if not fav:
+                now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                fav = MangaFavorite(session_id=session_id, manga_id=manga_id, added_at=now_str)
+                session.add(fav)
+                await session.commit()
+
+    async def remove_favorite(self, session_id: str, manga_id: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            await session.exec(delete(MangaFavorite).where(MangaFavorite.manga_id == manga_id, MangaFavorite.session_id == session_id))  # type: ignore
+            await session.commit()
+
+    async def get_favorites(self, session_id: str) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(Manga)
+                .join(MangaFavorite, MangaFavorite.manga_id == Manga.id)  # type: ignore
+                .where(MangaFavorite.session_id == session_id)  # type: ignore
+                .order_by(MangaFavorite.added_at.desc())  # type: ignore
+            )
+            result = await session.exec(stmt)
+            return [_row_to_dict(r) for r in result.all()]
+
+    # ----- Watchlist -----
+    async def save_watchlist(
+        self,
+        session_id: str,
+        manga_id: str,
+        status: str = "da_leggere",
+        chapters_read: Optional[int] = None,
+        chapters_total: Optional[int] = None,
+        notes: Optional[str] = None,
+    ) -> None:
+        import datetime
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(MangaWatchlist).where(MangaWatchlist.manga_id == manga_id, MangaWatchlist.session_id == session_id))  # type: ignore
+            item = result.one_or_none()
+            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            if item:
+                item.status = status
+                item.last_update = now_str
+                if chapters_read is not None:
+                    item.chapters_read = chapters_read
+                if chapters_total is not None:
+                    item.chapters_total = chapters_total
+                if notes is not None:
+                    item.notes = notes
+                if status == "completato" and not item.completed_at:
+                    item.completed_at = now_str
+                elif status != "completato":
+                    item.completed_at = None
+            else:
+                item = MangaWatchlist(
+                    session_id=session_id,
+                    manga_id=manga_id,
+                    status=status,
+                    chapters_read=chapters_read or 0,
+                    chapters_total=chapters_total,
+                    notes=notes,
+                    added_at=now_str,
+                    last_update=now_str,
+                    completed_at=now_str if status == "completato" else None,
+                )
+                session.add(item)
+            await session.commit()
+
+    async def get_watchlist(self, session_id: str, status_filter: Optional[str] = None) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = (
+                select(Manga, MangaWatchlist)
+                .join(MangaWatchlist, MangaWatchlist.manga_id == Manga.id)  # type: ignore
+                .where(MangaWatchlist.session_id == session_id)  # type: ignore
+            )
+            if status_filter:
+                stmt = stmt.where(MangaWatchlist.status == status_filter)
+            stmt = stmt.order_by(MangaWatchlist.last_update.desc())  # type: ignore
+            result = await session.exec(stmt)
+            
+            watchlist_items = []
+            for row in result.all():
+                manga_dict = _row_to_dict(row[0])
+                wl: MangaWatchlist = row[1]
+                
+                manga_dict["watchlist_status"] = wl.status
+                manga_dict["chapters_read"] = wl.chapters_read or 0
+                manga_dict["chapters_total"] = wl.chapters_total
+                manga_dict["notes"] = wl.notes
+                manga_dict["added_at"] = wl.added_at
+                manga_dict["last_update"] = wl.last_update
+                watchlist_items.append(manga_dict)
+            return watchlist_items
+
+    async def remove_watchlist(self, session_id: str, manga_id: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            await session.exec(delete(MangaWatchlist).where(MangaWatchlist.manga_id == manga_id, MangaWatchlist.session_id == session_id))  # type: ignore
+            await session.commit()
 

@@ -27,7 +27,8 @@ from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, Coo
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from backend.scraper import AnimeWorldScraper  # noqa: E402
-from backend.database import AnimeDatabase  # noqa: E402
+from backend.manga_scraper import MangaWorldScraper  # noqa: E402
+from backend.database import AnimeDatabase, MangaDatabase  # noqa: E402
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # noqa: E402
 
 # Redis for caching frequent searches (optional — works without it)
@@ -94,6 +95,8 @@ allowed_origins = list(dict.fromkeys(_env_origins + _default_origins))  # dedupl
 
 db = AnimeDatabase()
 scraper = AnimeWorldScraper()
+manga_db = MangaDatabase()
+manga_scraper = MangaWorldScraper()
 scheduler = AsyncIOScheduler()
 
 async def scheduled_update():
@@ -611,4 +614,161 @@ async def sync_catalog(request: Request, background_tasks: BackgroundTasks):
     """Manualmente avvia una sincronizzazione completa del catalogo (merge) in background."""
     background_tasks.add_task(daily_catalog_sync)
     return {"status": "ok", "message": "Sincronizzazione completa del catalogo avviata in background."}
+
+
+# ---------------- MANGA ENDPOINTS ----------------
+
+@app.get("/manga/search")
+async def manga_search(q: str = Query(..., min_length=1)):
+    """Cerca un manga tramite lo scraper (non usiamo il DB fuzzy per ora per semplicità)."""
+    if not q.strip():
+        raise HTTPException(400, "Query vuota")
+    cache_key = f"manga_search:{q}"
+    cached = cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+        
+    results = await asyncio.to_thread(manga_scraper.search, q.strip())
+    response = {"query": q, "count": len(results), "results": results}
+    cache_set(cache_key, json.dumps(response), ex=300)
+    return response
+
+@app.get("/manga/catalog")
+async def manga_catalog(
+    page: int = Query(0, ge=0),
+    per_page: int = Query(50, ge=10, le=100),
+    sort: str = Query("title"),
+    genre: str = Query(""),
+    status: str = Query(""),
+    search: str = Query(""),
+):
+    """Paginated manga catalog with filters."""
+    return await manga_db.get_all(
+        page=page,
+        per_page=per_page,
+        sort_by=sort,
+        genre=genre,
+        status=status,
+        search=search,
+    )
+
+@app.get("/manga/{manga_id}")
+async def manga_detail(manga_id: str):
+    """Dettaglio manga e capitoli."""
+    base = await manga_db.get_by_id(manga_id)
+    if not base:
+        # Tenta di prelevare i dettagli direttamente
+        manga_url = f"/manga/{manga_id.replace('---', '/')}"
+        detail = await asyncio.to_thread(manga_scraper.get_manga_detail, manga_url)
+        if not detail or not detail.get("chapters"):
+            raise HTTPException(404, "Manga non trovato")
+        
+        base = {
+            "id": manga_id,
+            "url": manga_url,
+            "title": detail.get("title") or manga_id.replace("-", " ").title(),
+            "image": detail.get("cover", ""),
+            "type": detail.get("type", ""),
+            "genres": detail.get("genres", []),
+            "status": detail.get("status", ""),
+            "year": detail.get("year", ""),
+            "rating": detail.get("rating", ""),
+        }
+        await manga_db.add_batch([base])
+    else:
+        detail = await asyncio.to_thread(manga_scraper.get_manga_detail, base["url"])
+        
+    chapters = detail.get("chapters", [])
+    for ch in chapters:
+        ch["manga_id"] = manga_id
+    if chapters:
+        await manga_db.add_chapters(chapters)
+        
+    return {**base, **detail}
+
+@app.get("/manga/chapter/{chapter_id}/images")
+async def get_chapter_images(chapter_id: str):
+    """Ottieni le immagini di un capitolo."""
+    # /read/manga-slug/en/chapter-number format typically
+    # We will need the full url. We can assume the scraper handles just the chapter ID if we modify it, 
+    # but currently get_chapter_images requires a full URL or relative URL. 
+    # Let's search the DB for the chapter to get its URL.
+    from sqlmodel import select
+    from backend.database import engine, Chapter
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    
+    async with AsyncSession(engine) as session:
+        result = await session.exec(select(Chapter).where(Chapter.id == chapter_id))
+        chapter = result.one_or_none()
+        
+    if not chapter or not chapter.url:
+        raise HTTPException(404, "Capitolo non trovato nel DB, visita prima la pagina del manga")
+        
+    images = await asyncio.to_thread(manga_scraper.get_chapter_images, chapter.url)
+    return {"chapter_id": chapter_id, "images": images}
+
+@app.get("/manga-watch")
+async def get_manga_watch(
+    session_id: str = Depends(get_or_create_session),
+    limit: int = Query(12, ge=1, le=50)
+):
+    return await manga_db.get_recent_progress(session_id, limit)
+
+@app.get("/manga-watch/{manga_id}")
+async def get_manga_watch_item(manga_id: str, session_id: str = Depends(get_or_create_session)):
+    progress = await manga_db.get_progress(session_id, manga_id)
+    return progress or {"message": "No progress found"}
+
+@app.post("/manga-watch/{manga_id}")
+async def save_manga_watch(manga_id: str, chapter_id: str = Query(...), session_id: str = Depends(get_or_create_session)):
+    await manga_db.save_progress(session_id, manga_id, chapter_id)
+    return {"status": "saved", "manga_id": manga_id, "chapter_id": chapter_id}
+
+@app.get("/manga-favorites")
+async def get_manga_favorites(session_id: str = Depends(get_or_create_session)):
+    return await manga_db.get_favorites(session_id)
+
+@app.post("/manga-favorites/{manga_id}")
+async def add_manga_favorite(manga_id: str, session_id: str = Depends(get_or_create_session)):
+    await manga_db.save_favorite(session_id, manga_id)
+    return {"status": "saved"}
+
+@app.delete("/manga-favorites/{manga_id}")
+async def remove_manga_favorite(manga_id: str, session_id: str = Depends(get_or_create_session)):
+    await manga_db.remove_favorite(session_id, manga_id)
+    return {"status": "deleted"}
+
+@app.get("/manga-watchlist")
+async def get_manga_watchlist(status: str = Query(""), session_id: str = Depends(get_or_create_session)):
+    return await manga_db.get_watchlist(session_id, status_filter=status or None)
+
+@app.post("/manga-watchlist/{manga_id}")
+async def add_manga_watchlist(
+    manga_id: str,
+    status: str = Query("da_leggere"),
+    chapters_read: int = Query(None),
+    chapters_total: int = Query(None),
+    notes: str = Query(None),
+    session_id: str = Depends(get_or_create_session)
+):
+    await manga_db.save_watchlist(session_id, manga_id, status, chapters_read, chapters_total, notes)
+    return {"status": "saved"}
+
+@app.put("/manga-watchlist/{manga_id}")
+async def update_manga_watchlist(
+    manga_id: str,
+    status: str = Query(...),
+    chapters_read: int = Query(None),
+    chapters_total: int = Query(None),
+    notes: str = Query(None),
+    session_id: str = Depends(get_or_create_session)
+):
+    await manga_db.save_watchlist(session_id, manga_id, status, chapters_read, chapters_total, notes)
+    return {"status": "updated"}
+
+@app.delete("/manga-watchlist/{manga_id}")
+async def remove_manga_watchlist(manga_id: str, session_id: str = Depends(get_or_create_session)):
+    await manga_db.remove_watchlist(session_id, manga_id)
+    return {"status": "deleted"}
+
 

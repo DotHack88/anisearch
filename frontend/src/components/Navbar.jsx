@@ -36,6 +36,15 @@ export default function Navbar() {
             </svg>
             Catalogo
           </Link>
+          <Link to="/manga/catalog"
+            className={`text-sm font-body transition-colors flex items-center gap-1.5
+              ${pathname === '/manga/catalog' ? 'text-accent' : 'text-muted hover:text-text'}`}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            Manga
+          </Link>
           <Link to="/favorites"
             className={`text-sm font-body transition-colors flex items-center gap-1.5
               ${pathname === '/favorites' ? 'text-accent' : 'text-muted hover:text-text'}`}>
@@ -113,6 +122,15 @@ export default function Navbar() {
                 <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
               </svg>
               Catalogo
+            </Link>
+            <Link to="/manga/catalog" onClick={() => setMenuOpen(false)}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-body transition-colors
+                ${pathname === '/manga/catalog' ? 'text-accent bg-accent/10' : 'text-text-dim hover:text-text hover:bg-surface'}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              Manga
             </Link>
             <Link to="/favorites" onClick={() => setMenuOpen(false)}
               className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-body transition-colors
