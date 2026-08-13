@@ -704,6 +704,12 @@ class MangaDatabase:
             await conn.run_sync(SQLModel.metadata.create_all)
         self._initialized = True
 
+    async def count(self) -> int:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(func.count()).select_from(Manga))
+            return result.one()
+
     # ----- Manga -----
     async def add_batch(self, manga_list: List[Dict], mode: str = "replace") -> None:
         await self._ensure_init()

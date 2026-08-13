@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import SearchBar from '../components/SearchBar.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
 import LatestEpisodes from '../components/LatestEpisodes.jsx'
+import LatestChapters from '../components/LatestChapters.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
 import { getStatus, getRecentWatchProgress, deleteWatchProgress, getRecentMangaWatchProgress } from '../utils/api'
 
@@ -258,6 +259,11 @@ export default function Home() {
       {/* Latest Episodes */}
       <section className="max-w-6xl mx-auto w-full px-4 pb-12">
         <LatestEpisodes limit={6} />
+      </section>
+
+      {/* Ultimi Capitoli Manga */}
+      <section className="max-w-6xl mx-auto w-full px-4 pb-12">
+        <LatestChapters limit={12} />
       </section>
 
       {/* Preferiti */}

@@ -124,6 +124,38 @@ async def daily_catalog_sync():
             exc_info=True
         )
 
+# Global sync status tracker (definito qui per essere visibile a lifespan e all'endpoint)
+_manga_sync_status: dict = {"running": False, "scraped": 0, "total": 0, "saved": 0, "error": None}
+
+async def _run_manga_sync():
+    """Coroutine riutilizzabile: scrapa l'archivio MangaWorld e salva nel DB."""
+    global _manga_sync_status
+    if _manga_sync_status["running"]:
+        return
+    _manga_sync_status = {"running": True, "scraped": 0, "total": 0, "saved": 0, "error": None}
+    try:
+        logger.info("Avvio sincronizzazione archivio MangaWorld...")
+
+        def progress_cb(done: int, total: int):
+            _manga_sync_status["scraped"] = done
+            _manga_sync_status["total"] = total
+
+        manga_list = await asyncio.to_thread(manga_scraper.scrape_full_archive, progress_cb)
+        logger.info(f"Archivio scraping completato: {len(manga_list)} manga. Salvataggio nel DB...")
+        chunk_size = 200
+        saved = 0
+        for i in range(0, len(manga_list), chunk_size):
+            chunk = manga_list[i:i + chunk_size]
+            await manga_db.add_batch(chunk, mode="ignore")
+            saved += len(chunk)
+            _manga_sync_status["saved"] = saved
+        logger.info(f"Sincronizzazione archivio completata: {saved} manga salvati nel DB.")
+    except Exception as e:
+        logger.error(f"Errore sincronizzazione archivio manga: {e}")
+        _manga_sync_status["error"] = str(e)
+    finally:
+        _manga_sync_status["running"] = False
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -140,6 +172,14 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(run_initial_scrape())
     else:
         logger.info(f"Avvio rapido — Database già popolato con {await db.count()} anime.")
+
+    # Auto-sync archivio manga se il DB manga è vuoto
+    manga_count = await manga_db.count()
+    if manga_count == 0:
+        logger.info("Database manga vuoto — Avvio importazione archivio MangaWorld in background...")
+        asyncio.create_task(_run_manga_sync())
+    else:
+        logger.info(f"Avvio rapido manga — Database già popolato con {manga_count} manga.")
         
     if not os.getenv("ADMIN_TOKEN"):
         warnings.warn(
@@ -616,7 +656,33 @@ async def sync_catalog(request: Request, background_tasks: BackgroundTasks):
     return {"status": "ok", "message": "Sincronizzazione completa del catalogo avviata in background."}
 
 
-# ---------------- MANGA ENDPOINTS ----------------
+# ----------------
+@app.get("/manga/latest-chapters")
+async def manga_latest_chapters():
+    """Ultimi capitoli aggiornati dalla homepage di MangaWorld."""
+    cache_key = "manga_latest_chapters"
+    cached = cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    results = await asyncio.to_thread(manga_scraper.get_latest_chapters)
+    if results:
+        cache_set(cache_key, json.dumps(results), ex=600)  # cache 10 min
+    return results
+
+@app.get("/manga/sync-status")
+async def manga_sync_status():
+    """Stato della sincronizzazione archivio manga in corso."""
+    return _manga_sync_status
+
+@app.post("/manga/sync-archive")
+async def manga_sync_archive(background_tasks: BackgroundTasks):
+    """Avvia la sincronizzazione completa dell'archivio MangaWorld in background."""
+    if _manga_sync_status["running"]:
+        return {"status": "already_running", "message": "Sincronizzazione già in corso."}
+
+    background_tasks.add_task(_run_manga_sync)
+    return {"status": "started", "message": "Sincronizzazione archivio MangaWorld avviata in background."}
 
 @app.get("/manga/search")
 async def manga_search(q: str = Query(..., min_length=1)):

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { getMangaCatalog, searchManga } from '../utils/api'
+import api from '../utils/api'
 
 const Sk = ({ className }) => <div className={`skeleton rounded-lg ${className}`} />
 
@@ -115,6 +116,8 @@ export default function MangaList() {
           </p>
         </div>
 
+
+
         {/* Barra di ricerca */}
         <div className="w-full md:w-80 relative">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
@@ -145,6 +148,26 @@ export default function MangaList() {
       {searchResults === null && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8 bg-surface/40 p-4 rounded-2xl border border-border/50 backdrop-blur-sm">
           <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-muted uppercase tracking-wider font-body px-1">Genere</label>
+            <select value={selectedGenre} onChange={e => { setSelectedGenre(e.target.value); setPage(0) }} className="filter-select">
+              <option value="">Tutti</option>
+              <option value="Azione">Azione</option>
+              <option value="Avventura">Avventura</option>
+              <option value="Commedia">Commedia</option>
+              <option value="Drammatico">Drammatico</option>
+              <option value="Fantasy">Fantasy</option>
+              <option value="Horror">Horror</option>
+              <option value="Isekai">Isekai</option>
+              <option value="Mecha">Mecha</option>
+              <option value="Psicologico">Psicologico</option>
+              <option value="Romantico">Romantico</option>
+              <option value="Sci-Fi">Sci-Fi</option>
+              <option value="Slice of Life">Slice of Life</option>
+              <option value="Sportivo">Sportivo</option>
+              <option value="Thriller">Thriller</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-muted uppercase tracking-wider font-body px-1">Stato</label>
             <select value={selectedStatus} onChange={e => { setSelectedStatus(e.target.value); setPage(0) }} className="filter-select">
               <option value="">Tutti</option>
@@ -159,13 +182,13 @@ export default function MangaList() {
               <option value="year">Anno (Nuovi prima)</option>
             </select>
           </div>
-          <div className="flex items-end col-span-2 sm:col-span-2">
+          <div className="flex items-end">
             <button
               onClick={() => { setSearch(''); setSelectedGenre(''); setSelectedStatus(''); setSortBy('title'); setPage(0) }}
-              className="w-full bg-border hover:bg-border/80 border border-white/5 text-text font-medium text-xs py-2.5 rounded-xl transition-all font-body flex items-center justify-center gap-2"
+              className="w-full bg-border hover:bg-border/80 border border-white/5 text-text font-medium text-xs py-2.5 rounded-xl transition-all font-body flex items-center justify-center gap-2 h-[38px]"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-              Resetta Filtri
+              Resetta
             </button>
           </div>
         </div>

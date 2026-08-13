@@ -84,6 +84,93 @@ class MangaWorldScraper:
             })
         return results
 
+    def _scrape_archive_page(self, page: int) -> list[dict]:
+        """Scrapa una singola pagina dell'archivio e restituisce i manga trovati."""
+        url = f"{BASE_URL}/archive?sort=a-z&page={page}"
+        soup = self._fetch(url)
+        if not soup:
+            return []
+
+        results = []
+        for entry in soup.select(".comics-grid .entry"):
+            thumb = entry.select_one("a.thumb")
+            if not thumb:
+                continue
+            href = thumb.get("href", "")
+            img = thumb.select_one("img")
+            image = img.get("src", "") if img else ""
+
+            title_tag = entry.select_one(".name a") or entry.select_one("a.manga-title")
+            title = title_tag.get_text(strip=True) if title_tag else ""
+
+            status_tag = entry.select_one(".status a")
+            status = status_tag.get_text(strip=True) if status_tag else ""
+
+            genres = [g.get_text(strip=True) for g in entry.select(".genres a")]
+
+            year_tag = entry.select_one(".year")
+            year = ""
+            if year_tag:
+                year_text = year_tag.get_text(strip=True)
+                import re as _re
+                m = _re.search(r"\d{4}", year_text)
+                year = m.group(0) if m else ""
+
+            parts = href.rstrip("/").split("/")
+            if len(parts) >= 2 and parts[-2].isdigit():
+                manga_id = f"{parts[-2]}---{parts[-1]}"
+            else:
+                manga_id = parts[-1] if href else ""
+
+            if manga_id:
+                results.append({
+                    "id": manga_id,
+                    "title": title,
+                    "url": href,
+                    "image": image,
+                    "status": status,
+                    "genres": genres,
+                    "year": year,
+                    "type": "",
+                    "rating": "",
+                })
+        return results
+
+    def scrape_full_archive(self, progress_cb=None, max_workers: int = 4) -> list[dict]:
+        """Scrapa l'intero archivio MangaWorld su tutte le pagine disponibili.
+        
+        Args:
+            progress_cb: Callable(scraped, total) chiamato ad ogni pagina completata.
+            max_workers: Thread paralleli (default 4 per non sovraccaricare il server).
+        """
+        # Determina l'ultima pagina valida
+        logger.info("Rilevamento numero pagine archivio MangaWorld...")
+        last_page = 1
+        for p in range(210, 1, -1):
+            test = self._scrape_archive_page(p)
+            if test:
+                last_page = p
+                break
+        logger.info(f"Archivio MangaWorld: {last_page} pagine rilevate.")
+
+        all_manga: list[dict] = []
+        pages = list(range(1, last_page + 1))
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_page = {executor.submit(self._scrape_archive_page, p): p for p in pages}
+            completed = 0
+            for future in as_completed(future_to_page):
+                page_results = future.result()
+                all_manga.extend(page_results)
+                completed += 1
+                if progress_cb:
+                    progress_cb(completed, last_page)
+                logger.info(f"Pagina {future_to_page[future]}/{last_page}: {len(page_results)} manga")
+                time.sleep(self.delay)
+
+        logger.info(f"Scraping archivio completato: {len(all_manga)} manga totali.")
+        return all_manga
+
     def get_manga_detail(self, manga_url: str) -> dict:
         """Get full manga detail and chapters list."""
         if not manga_url.startswith("http"):
@@ -215,6 +302,60 @@ class MangaWorldScraper:
             if src:
                 images.append(src)
         return images
+
+    def get_latest_chapters(self) -> list[dict]:
+        """Scrapa la homepage di MangaWorld e restituisce i manga con ultimi capitoli."""
+        soup = self._fetch(f"{BASE_URL}/")
+        if not soup:
+            return []
+
+        results = []
+        entries = soup.select("div.comics-grid .entry")
+        for entry in entries:
+            thumb = entry.select_one("a.thumb")
+            if not thumb:
+                continue
+
+            href = thumb.get("href", "")
+            title_tag = entry.select_one("a.manga-title")
+            title = title_tag.get_text(strip=True) if title_tag else ""
+            img = thumb.select_one("img")
+            image = img.get("src", "") if img else ""
+
+            # Extract manga ID from URL
+            parts = href.rstrip("/").split("/")
+            if len(parts) >= 2 and parts[-2].isdigit():
+                manga_id = f"{parts[-2]}---{parts[-1]}"
+            else:
+                manga_id = parts[-1] if href else ""
+
+            # Get latest chapters (up to 2)
+            chapters = []
+            for ch_div in entry.select("div.d-flex.flex-wrap.flex-row")[:2]:
+                a = ch_div.select_one("a.xanh")
+                if not a:
+                    continue
+                ch_href = a.get("href", "")
+                ch_title = a.get("title", a.get_text(strip=True))
+                # Extract chapter ID from URL: last path segment
+                ch_id = ch_href.rstrip("/").split("/")[-1]
+                is_new = bool(ch_div.select_one("img[alt='Nuovo']"))
+                chapters.append({
+                    "id": ch_id,
+                    "title": ch_title,
+                    "url": ch_href,
+                    "is_new": is_new,
+                })
+
+            results.append({
+                "id": manga_id,
+                "title": title,
+                "url": href,
+                "image": image,
+                "chapters": chapters,
+            })
+
+        return results
 
 if __name__ == "__main__":
     # Test
