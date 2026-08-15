@@ -6,6 +6,7 @@
 # ============================================================
 
 # --- Stage 1: Build frontend ---
+# Frontend calls /api/* which Nginx proxies to uvicorn (strips /api prefix)
 FROM node:22-slim AS frontend-build
 WORKDIR /build
 COPY frontend/package*.json ./
@@ -49,13 +50,28 @@ server {
     }
 
     # Backend API — proxy to uvicorn
+    # Nginx handles CORS preflight (OPTIONS) so FastAPI CORS middleware can respond correctly
     location /api/ {
+        # Handle CORS preflight requests at Nginx level
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
+            add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Session-Id, X-Admin-Token' always;
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+
         proxy_pass http://127.0.0.1:8000/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 300;
+
+        # Forward CORS headers from FastAPI
+        add_header 'Access-Control-Allow-Origin' '*' always;
     }
 }
 EOF
