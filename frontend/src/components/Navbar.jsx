@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import SearchBar from './SearchBar.jsx'
 import { useDownloads } from '../hooks/useDownloads.js'
 import SyncModal from './SyncModal.jsx'
+import UserMenu from './UserMenu.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
 export default function Navbar() {
   const { pathname } = useLocation()
@@ -10,6 +12,11 @@ export default function Navbar() {
   const { activeCount } = useDownloads()
   const [menuOpen, setMenuOpen] = useState(false)
   const [syncOpen, setSyncOpen] = useState(false)
+
+  // Nascondi la Navbar globale nel MangaReader per evitare sovrapposizioni con il suo header dedicato
+  if (pathname.startsWith('/manga/read/')) {
+    return null
+  }
 
   return (
     <header className="sticky top-0 z-40 bg-bg/80 backdrop-blur-md border-b border-border">
@@ -79,16 +86,9 @@ export default function Navbar() {
               </span>
             )}
           </Link>
-          <button
-            onClick={() => setSyncOpen(true)}
-            title="Sincronizza dispositivi"
-            className="p-2 rounded-lg text-muted hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-              <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-            </svg>
-          </button>
+          
+          <NotificationBell />
+          <UserMenu />
         </nav>
 
         {/* Mobile hamburger */}
@@ -163,20 +163,9 @@ export default function Navbar() {
                 </span>
               )}
             </Link>
-            <button
-              onClick={() => { setSyncOpen(true); setMenuOpen(false) }}
-              className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-body transition-colors text-text-dim hover:text-accent hover:bg-accent/10 cursor-pointer w-full text-left"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-              </svg>
-              Sincronizza
-            </button>
           </nav>
         </div>
       )}
-      {syncOpen && <SyncModal onClose={() => setSyncOpen(false)} />}
     </header>
   )
 }

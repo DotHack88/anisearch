@@ -2,8 +2,9 @@ import os
 import json
 import logging
 from typing import List, Dict, Optional, Any
+from datetime import datetime, timezone
 
-from sqlmodel import SQLModel, Field, select
+from sqlmodel import SQLModel, Field, select, col
 from sqlalchemy import func, delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -42,6 +43,23 @@ else:
     )
 
 # ---------- Models ----------
+class User(SQLModel, table=True):
+    id: str = Field(primary_key=True)  # UUID stored as string
+    email: Optional[str] = Field(default=None, unique=True, index=True)
+    hashed_password: Optional[str] = Field(default=None)
+    username: str = Field(index=True)
+    avatar_url: Optional[str] = Field(default=None)
+    
+    # OAuth Provider IDs
+    google_id: Optional[str] = Field(default=None, unique=True, index=True)
+    discord_id: Optional[str] = Field(default=None, unique=True, index=True)
+    
+    # Provider Access Tokens (for Sync)
+    mal_token: Optional[str] = Field(default=None)
+    anilist_token: Optional[str] = Field(default=None)
+    
+    created_at: Optional[str] = None
+
 class Anime(SQLModel, table=True):
     id: Optional[str] = Field(default=None, primary_key=True)
     title: str = Field(default="")
@@ -84,6 +102,23 @@ class Watchlist(SQLModel, table=True):
     added_at: Optional[str] = None
     last_update: Optional[str] = None
     completed_at: Optional[str] = None
+
+class Notification(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True)
+    anime_id: str = Field(foreign_key="anime.id")
+    episode_id: str = Field(foreign_key="episode.id")
+    message: str
+    is_read: bool = Field(default=False)
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class PushSubscription(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: str = Field(index=True)
+    endpoint: str = Field(unique=True)
+    auth: str
+    p256dh: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # ---------- Manga Models ----------
 class Manga(SQLModel, table=True):
@@ -189,6 +224,8 @@ class AnimeDatabase:
             await session.exec(delete(MangaWatchlist))
             await session.exec(delete(Chapter))
             await session.exec(delete(Manga))
+            await session.exec(delete(Notification))
+            await session.exec(delete(PushSubscription))
             await session.exec(delete(WatchProgress))
             await session.exec(delete(Favorite))
             await session.exec(delete(Watchlist))
@@ -196,6 +233,39 @@ class AnimeDatabase:
             await session.exec(delete(Anime))
             await session.commit()
         logger.info("Database cleared — all tables emptied.")
+
+    # ----- Push Subscriptions -----
+    async def save_push_subscription(self, session_id: str, endpoint: str, auth: str, p256dh: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            result = await session.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint))
+            sub = result.one_or_none()
+            if sub:
+                sub.session_id = session_id
+                sub.auth = auth
+                sub.p256dh = p256dh
+            else:
+                sub = PushSubscription(session_id=session_id, endpoint=endpoint, auth=auth, p256dh=p256dh)
+                session.add(sub)
+            await session.commit()
+            
+    async def get_push_subscriptions(self, session_ids: List[str]) -> List[dict]:
+        await self._ensure_init()
+        if not session_ids:
+            return []
+        async with AsyncSession(engine) as session:
+            stmt = select(PushSubscription).where(col(PushSubscription.session_id).in_(session_ids))
+            result = await session.exec(stmt)
+            return [_row_to_dict(s) for s in result.all()]
+
+    async def delete_push_subscription(self, endpoint: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            existing = await session.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint))
+            sub = existing.one_or_none()
+            if sub:
+                await session.delete(sub)
+            await session.commit()
 
     # ----- Anime -----
     async def add_batch(self, anime_list: List[Dict], mode: str = "replace") -> None:
@@ -444,6 +514,39 @@ class AnimeDatabase:
             else:
                 wp = WatchProgress(session_id=session_id, anime_id=anime_id, episode_id=episode_id, updated_at=now_str)
                 session.add(wp)
+                
+            # Sync with Watchlist
+            ep_res = await session.exec(select(Episode).where(Episode.id == episode_id))
+            ep = ep_res.one_or_none()
+            if ep and ep.episode is not None:
+                wl_res = await session.exec(select(Watchlist).where(Watchlist.anime_id == anime_id, Watchlist.session_id == session_id))
+                wl = wl_res.one_or_none()
+                ep_num = ep.episode
+                if wl:
+                    # Update if the watched episode number is greater than the currently saved one
+                    if not wl.episodes_watched or ep_num > wl.episodes_watched:
+                        wl.episodes_watched = ep_num
+                        wl.last_update = now_str
+                        # Automatically mark as complete if it reached the total
+                        if wl.episodes_total and ep_num >= wl.episodes_total:
+                            wl.status = "completato"
+                            if not wl.completed_at:
+                                wl.completed_at = now_str
+                        elif wl.status == "da_guardare":
+                            wl.status = "in_visione"
+                else:
+                    # Automatically add to watchlist if it wasn't there
+                    wl = Watchlist(
+                        session_id=session_id,
+                        anime_id=anime_id,
+                        status="in_visione",
+                        episodes_watched=ep_num,
+                        episodes_total=None,
+                        added_at=now_str,
+                        last_update=now_str,
+                    )
+                    session.add(wl)
+            
             await session.commit()
 
     async def get_watch_progress(self, session_id: str, anime_id: str) -> Optional[dict]:
@@ -691,6 +794,110 @@ class AnimeDatabase:
                 "completamento_globale": global_pct,
             }
 
+    # ----- Recommendations -----
+    async def get_recommendations(self, session_id: str, limit: int = 12) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            # 1. Recupera tutti gli anime interagiti dall'utente
+            interacted_anime_ids = set()
+            
+            # Watchlist
+            wl_stmt = select(Watchlist.anime_id).where(Watchlist.session_id == session_id)
+            wl_res = await session.exec(wl_stmt)
+            interacted_anime_ids.update(wl_res.all())
+            
+            # Favorites
+            fav_stmt = select(Favorite.anime_id).where(Favorite.session_id == session_id)
+            fav_res = await session.exec(fav_stmt)
+            interacted_anime_ids.update(fav_res.all())
+            
+            # WatchProgress
+            wp_stmt = select(WatchProgress.anime_id).where(WatchProgress.session_id == session_id)
+            wp_res = await session.exec(wp_stmt)
+            interacted_anime_ids.update(wp_res.all())
+
+            # Se non ha storico, restituiamo i titoli più votati (Cold Start)
+            if not interacted_anime_ids:
+                stmt = select(Anime).where(Anime.rating.isnot(None)).order_by(Anime.rating.desc()).limit(limit)  # type: ignore
+                result = await session.exec(stmt)
+                return [_row_to_dict(r) for r in result.all()]
+
+            # 2. Ottieni i generi degli anime interagiti
+            anime_stmt = select(Anime.genres).where(col(Anime.id).in_(interacted_anime_ids))
+            anime_res = await session.exec(anime_stmt)
+            
+            from collections import Counter
+            genre_counts = Counter()
+            for genres_str in anime_res.all():
+                genres = _parse_genres(genres_str)
+                for g in genres:
+                    genre_counts[g] += 1
+            
+            # 3. Estrai i top 3 generi
+            top_genres = [g for g, count in genre_counts.most_common(3)]
+            
+            # Se per qualche motivo non ci sono generi, fallback
+            if not top_genres:
+                stmt = select(Anime).where(col(Anime.id).not_in(interacted_anime_ids)).order_by(Anime.rating.desc()).limit(limit)  # type: ignore
+                result = await session.exec(stmt)
+                return [_row_to_dict(r) for r in result.all()]
+
+            # 4. Trova raccomandazioni: anime che contengono uno dei top generi, non visti
+            # Poiché genres è un JSON/string, facciamo query in memoria se non c'è supporto JSON nativo, oppure filtri stringa
+            # SQLite e PostgreSQL differiscono. Per robustezza, estraiamo un batch generoso escludendo i visti e filtriamo in Python.
+            # Ottimizzazione: ordiniamo per rating nel DB e poi filtriamo.
+            stmt = select(Anime).where(col(Anime.id).not_in(interacted_anime_ids)).where(Anime.rating.isnot(None)).order_by(Anime.rating.desc()).limit(200)  # type: ignore
+            result = await session.exec(stmt)
+            all_candidates = result.all()
+            
+            recommendations = []
+            for anime in all_candidates:
+                a_genres = _parse_genres(anime.genres)
+                if any(g in a_genres for g in top_genres):
+                    recommendations.append(_row_to_dict(anime))
+                    if len(recommendations) >= limit:
+                        break
+                        
+            # Se le raccomandazioni trovate sono troppo poche, riempi con i best rated
+            if len(recommendations) < limit:
+                seen_recs = {r["id"] for r in recommendations}
+                for anime in all_candidates:
+                    if anime.id not in seen_recs:
+                        recommendations.append(_row_to_dict(anime))
+                        if len(recommendations) >= limit:
+                            break
+
+            return recommendations
+
+    # ----- Notifications -----
+    async def create_notification(self, user_id: str, anime_id: str, episode_id: str, message: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            notif = Notification(
+                user_id=user_id,
+                anime_id=anime_id,
+                episode_id=episode_id,
+                message=message
+            )
+            session.add(notif)
+            await session.commit()
+
+    async def get_notifications(self, user_id: str) -> List[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = select(Notification).where(Notification.user_id == user_id).order_by(Notification.created_at.desc()) # type: ignore
+            result = await session.exec(stmt)
+            return [_row_to_dict(n) for n in result.all()]
+
+    async def mark_notifications_as_read(self, user_id: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = select(Notification).where(Notification.user_id == user_id, Notification.is_read == False)
+            result = await session.exec(stmt)
+            for notif in result.all():
+                notif.is_read = True
+                session.add(notif)
+            await session.commit()
 
 class MangaDatabase:
     def __init__(self):
@@ -934,6 +1141,12 @@ class MangaDatabase:
             if wp:
                 return {"chapter_id": wp.chapter_id, "updated_at": wp.updated_at}
             return None
+
+    async def delete_progress(self, session_id: str, manga_id: str) -> None:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            await session.exec(delete(MangaProgress).where(MangaProgress.manga_id == manga_id, MangaProgress.session_id == session_id))  # type: ignore
+            await session.commit()
 
     async def get_recent_progress(self, session_id: str, limit: int = 10) -> List[dict]:
         await self._ensure_init()

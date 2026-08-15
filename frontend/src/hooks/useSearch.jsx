@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { searchAnime } from '../utils/api'
+import { searchAnime, searchManga } from '../utils/api'
 
 const queryCache = new Map()
 
@@ -18,9 +18,26 @@ export function useSearch(debounceMs = 300) {
     if (queryCache.has(key)) { setResults(queryCache.get(key)); setIsOpen(true); return }
     setLoading(true); setError(null)
     try {
-      const data = await searchAnime(q)
-      queryCache.set(key, data)
-      setResults(data); setIsOpen(true)
+      const [animeData, mangaData] = await Promise.all([
+        searchAnime(q).catch(() => []),
+        searchManga(q).catch(() => [])
+      ])
+      const mappedAnime = animeData.map(a => ({ ...a, mediaType: 'anime' }))
+      const mappedManga = mangaData.map(m => ({ ...m, mediaType: 'manga' }))
+      
+      // Mescola in modo bilanciato (max 3 anime, 2 manga di default)
+      const combined = [
+        ...mappedAnime.slice(0, 3),
+        ...mappedManga.slice(0, 2)
+      ]
+      // Se non arriviamo a 5, riempiamo con i rimanenti (anime o manga)
+      if (combined.length < 5) {
+        const extras = [...mappedAnime.slice(3), ...mappedManga.slice(2)]
+        combined.push(...extras.slice(0, 5 - combined.length))
+      }
+      
+      queryCache.set(key, combined)
+      setResults(combined); setIsOpen(true)
     } catch {
       setError('Errore di rete. Il backend è avviato?')
       setResults([])

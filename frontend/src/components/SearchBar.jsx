@@ -2,7 +2,10 @@ import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSearch } from '../hooks/useSearch.jsx'
 
-const TypeBadge = ({ type }) => {
+const TypeBadge = ({ type, mediaType }) => {
+  if (mediaType === 'manga') {
+    return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-500/20 font-body text-orange-300 border border-orange-500/30">Manga</span>
+  }
   if (!type) return null
   const map = { TV: 'text-blue-300', Movie: 'text-purple-300', OVA: 'text-green-300', ONA: 'text-yellow-300' }
   return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white/10 font-body ${map[type] || 'text-gray-300'}`}>{type}</span>
@@ -45,7 +48,14 @@ export default function SearchBar({ large = false, autoFocus = false }) {
     if (e.key === 'Escape') { setIsOpen(false); inputRef.current?.blur() }
   }
 
-  const select = (anime) => { clearSearch(); navigate(`/anime/${anime.id}`, { state: anime }) }
+  const select = (item) => { 
+    clearSearch(); 
+    if (item.mediaType === 'manga') {
+      navigate(`/manga/${item.id}`, { state: item })
+    } else {
+      navigate(`/anime/${item.id}`, { state: item })
+    }
+  }
 
   const handleImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -82,7 +92,7 @@ export default function SearchBar({ large = false, autoFocus = false }) {
           onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKey}
           onFocus={() => (results.length > 0 || loading || error) && setIsOpen(true)}
-          placeholder="Cerca un anime..."
+          placeholder="Cerca un anime e manga..."
           autoFocus={autoFocus}
           autoComplete="off"
           spellCheck="false"
@@ -151,7 +161,7 @@ export default function SearchBar({ large = false, autoFocus = false }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-text truncate font-body">{anime.title}</p>
-                        <div className="mt-0.5"><TypeBadge type={anime.type} /></div>
+                        <div className="mt-0.5"><TypeBadge type={anime.type} mediaType={anime.mediaType} /></div>
                       </div>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted flex-shrink-0"><path d="m9 18 6-6-6-6" /></svg>
                     </li>

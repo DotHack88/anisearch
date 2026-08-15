@@ -15,6 +15,12 @@ import NewEpisodesPage from './pages/NewEpisodesPage.jsx'
 import MangaList from './pages/MangaList.jsx'
 import MangaDetail from './pages/MangaDetail.jsx'
 import MangaReader from './pages/MangaReader.jsx'
+import LoginPage from './pages/LoginPage.jsx'
+import RegisterPage from './pages/RegisterPage.jsx'
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
+import SettingsPage from './pages/SettingsPage.jsx'
+import ProfilePage from './pages/ProfilePage.jsx'
 
 // Mostra il loader una sola volta per sessione browser
 const hasSeenLoader = sessionStorage.getItem('anisearch_loader_seen')
@@ -43,6 +49,12 @@ export default function App() {
             <Route path="/watchlist"     element={<WatchlistPage />} />
             <Route path="/downloads"     element={<DownloadsPage />} />
             <Route path="/nuovi-episodi" element={<NewEpisodesPage />} />
+            <Route path="/login"         element={<LoginPage />} />
+            <Route path="/register"      element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password"  element={<ResetPasswordPage />} />
+            <Route path="/impostazioni"  element={<SettingsPage />} />
+            <Route path="/profilo"       element={<ProfilePage />} />
             
             <Route path="/manga/catalog" element={<MangaList />} />
             <Route path="/manga/:id" element={<MangaDetail />} />

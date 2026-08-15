@@ -234,6 +234,11 @@ function WatchlistCard({ anime, onEdit, onRemove }) {
             </span>
           </div>
           <ProgressBar value={progress} status={anime.watchlist_status} hasTotal={hasTotal} episodesWatched={episodesWatched} />
+          {hasTotal && episodesTotal > episodesWatched && (
+            <p className="text-[9px] mt-0.5 text-right font-semibold" style={{ color: 'var(--color-muted)' }}>
+              {episodesTotal - episodesWatched} {episodesTotal - episodesWatched === 1 ? 'ep mancante' : 'ep mancanti'}
+            </p>
+          )}
         </div>
 
         {/* Notes */}

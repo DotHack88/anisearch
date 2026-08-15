@@ -21,7 +21,8 @@ env_dir = Path(__file__).resolve().parent
 load_dotenv(env_dir / ".env")
 load_dotenv(env_dir.parent / ".env")
 
-from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, Cookie, Response, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, Cookie, Response, BackgroundTasks, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 
 # Add project root to Python path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -232,6 +233,10 @@ def verify_admin_token(x_admin_token: str = Header(...)):
 
 app = FastAPI(title="AniSearch API", version="2.1.0", lifespan=lifespan)
 
+AVATARS_DIR = env_dir.parent / "backend" / "data" / "avatars"
+AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/avatars", StaticFiles(directory=str(AVATARS_DIR)), name="avatars")
+
 # --- Rate limiting setup ---
 if _has_slowapi:
     assert get_remote_address is not None
@@ -259,6 +264,9 @@ app.add_middleware(
 # Registra il router TMDB (modulo separato — evita cache bytecode su Windows)
 from backend.tmdb import router as tmdb_router  # noqa: E402
 app.include_router(tmdb_router)
+
+from backend.auth import router as auth_router
+app.include_router(auth_router)
 
 
 # --- Auth helper rimosso in favore di verify_admin_token ---

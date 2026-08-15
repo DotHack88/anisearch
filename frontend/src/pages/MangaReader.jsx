@@ -66,6 +66,21 @@ export default function MangaReader() {
 
   useEffect(() => { resetHideTimer() }, [scrollMode, resetHideTimer])
 
+  // Pre-fetch immagini successive in modalità pagina
+  useEffect(() => {
+    if (images.length === 0 || scrollMode) return
+    
+    // Quante immagini pre-caricare in anticipo
+    const preloadCount = 3
+    const startIndex = currentPage + 1
+    const endIndex = Math.min(startIndex + preloadCount, images.length)
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const img = new Image()
+      img.src = images[i]
+    }
+  }, [currentPage, images, scrollMode])
+
   // Navigazione tastiera in modalità pagina-per-pagina
   useEffect(() => {
     if (scrollMode) return
@@ -145,6 +160,8 @@ export default function MangaReader() {
               key={i}
               src={src}
               alt={`Pagina ${i + 1}`}
+              loading="lazy"
+              decoding="async"
               className="w-full md:max-w-3xl lg:max-w-4xl block object-contain shadow-2xl"
               style={{ display: 'block' }}
               onLoad={() => setLoadedCount(c => c + 1)}
@@ -174,12 +191,27 @@ export default function MangaReader() {
         /* ---- MODALITÀ PAGINA-PER-PAGINA ---- */
         <div className="flex flex-col items-center justify-center min-h-screen">
           {images[currentPage] && (
-            <div className="relative w-full max-w-full md:max-w-5xl mx-auto px-0 md:px-2 flex justify-center items-center min-h-screen" onClick={() => setCurrentPage(p => Math.min(p + 1, images.length - 1))}>
+            <div className="relative w-full max-w-full md:max-w-5xl mx-auto px-0 md:px-2 flex justify-center items-center min-h-screen">
               <img
                 src={images[currentPage]}
                 alt={`Pagina ${currentPage + 1}`}
-                className="w-full h-auto max-h-[100vh] object-contain cursor-pointer select-none"
+                className="w-full h-auto max-h-[100vh] object-contain select-none z-0"
                 onLoad={() => setLoadedCount(c => Math.max(c, currentPage + 1))}
+              />
+              {/* Overlay invisibile per i controlli di click sinistra/destra */}
+              <div 
+                className="absolute inset-0 z-10 cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickX = e.clientX - rect.left;
+                  // Metà sinistra -> indietro, Metà destra -> avanti
+                  if (clickX < rect.width / 2) {
+                    setCurrentPage(p => Math.max(p - 1, 0));
+                  } else {
+                    setCurrentPage(p => Math.min(p + 1, images.length - 1));
+                  }
+                }}
+                title="Clicca a sinistra per tornare indietro, a destra per andare avanti"
               />
             </div>
           )}

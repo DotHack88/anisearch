@@ -4,8 +4,10 @@ import SearchBar from '../components/SearchBar.jsx'
 import AnimeCard from '../components/AnimeCard.jsx'
 import LatestEpisodes from '../components/LatestEpisodes.jsx'
 import LatestChapters from '../components/LatestChapters.jsx'
+import ContinueWatchingCarousel from '../components/ContinueWatchingCarousel.jsx'
+import RecommendationsCarousel from '../components/RecommendationsCarousel.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
-import { getStatus, getRecentWatchProgress, deleteWatchProgress, getRecentMangaWatchProgress } from '../utils/api'
+import { getStatus, getRecentWatchProgress, deleteWatchProgress, getRecentMangaWatchProgress, deleteMangaWatchProgress } from '../utils/api'
 
 function AnimatedCounter({ value }) {
   const [count, setCount] = useState(0)
@@ -82,6 +84,18 @@ export default function Home() {
     setRecentWatch(prev => prev.filter(item => !(item.anime_id === animeId && item.episode_id === episodeId)))
   }
 
+  const handleClearMangaProgress = async (e, mangaId, chapterId) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      localStorage.removeItem(`manga_read_${mangaId}_${chapterId}`)
+      await deleteMangaWatchProgress(mangaId)
+      setRecentMangaRead(prev => prev.filter(item => item.manga_id !== mangaId))
+    } catch (err) {
+      console.error('Error removing manga progress:', err)
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Hero */}
@@ -134,72 +148,15 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Riprendi la Visione */}
-      {recentWatch.length > 0 && (
-        <section className="max-w-6xl mx-auto w-full px-4 pb-12">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-display text-2xl tracking-wide text-text flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
-                <circle cx="12" cy="12" r="10" />
-                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" />
-              </svg>
-              RIPRENDI LA VISIONE
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {recentWatch.map(item => (
-              <Link
-                key={item.anime_id}
-                to={`/watch/${item.anime_id}/${item.episode_id}`}
-                className="group relative bg-card/40 border border-border/50 rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:border-accent/40 hover:-translate-y-1 transition-all duration-300 backdrop-blur-sm"
-              >
-                {/* Clear progress button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    handleClearProgress(item.anime_id, item.episode_id);
-                  }}
-                  title="Cancella progresso"
-                  className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/20 text-white hover:bg-red-600 hover:border-red-500 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm opacity-0 group-hover:opacity-100"
-                >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <line x1="1" y1="1" x2="9" y2="9" />
-                    <line x1="9" y1="1" x2="1" y2="9" />
-                  </svg>
-                </button>
-                {/* Poster Container */}
-                <div className="aspect-[16/9] w-full overflow-hidden bg-surface relative">
-                  <img
-                    src={item.anime_image || `https://img.animeworld.ac/locandine/${item.anime_id}.jpg`}
-                    alt={item.anime_title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  {/* Glass Play Overlay */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                    <div className="w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                    </div>
-                  </div>
-                  {/* Badge Episodio */}
-                  <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/75 text-white rounded-md text-[10px] font-bold font-body backdrop-blur-sm border border-white/10">
-                    Episodio {item.episode_number}
-                  </span>
-                </div>
-                {/* Title */}
-                <div className="p-3">
-                  <h3 className="font-semibold text-xs text-text font-body truncate group-hover:text-accent transition-colors">
-                    {item.anime_title}
-                  </h3>
-                  <p className="text-[10px] text-muted font-body mt-0.5">
-                    Ultimo riprodotto
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Riprendi la Visione Carousel */}
+      <section className="max-w-6xl mx-auto w-full px-4 pb-2 mt-4">
+        <ContinueWatchingCarousel />
+      </section>
+
+      {/* Raccomandazioni AI */}
+      <section className="max-w-6xl mx-auto w-full px-4 pb-2">
+        <RecommendationsCarousel />
+      </section>
 
       {/* Continua a Leggere */}
       {recentMangaRead.length > 0 && (
@@ -236,6 +193,15 @@ export default function Home() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
                     </div>
                   </div>
+
+                  {/* Remove Button */}
+                  <button
+                    onClick={(e) => handleClearMangaProgress(e, item.manga_id, item.chapter_id)}
+                    className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100 z-10"
+                    title="Rimuovi"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
                   {/* Badge Capitolo */}
                   {item.chapter_number && (
                     <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/75 text-white rounded-md text-[10px] font-bold font-body backdrop-blur-sm border border-white/10">
@@ -257,13 +223,13 @@ export default function Home() {
       )}
 
       {/* Latest Episodes */}
-      <section className="max-w-6xl mx-auto w-full px-4 pb-12">
+      <section className="max-w-6xl mx-auto w-full px-4 pb-12 pt-6">
         <LatestEpisodes limit={6} />
       </section>
 
       {/* Ultimi Capitoli Manga */}
       <section className="max-w-6xl mx-auto w-full px-4 pb-12">
-        <LatestChapters limit={12} />
+        <LatestChapters limit={6} />
       </section>
 
       {/* Preferiti */}

@@ -502,6 +502,8 @@ class AnimeWorldScraper:
                         future.result()
             except Exception as e:
                 logger.warning(f"Failed to fetch episodes for {anime.get('id')}: {e}")
+        
+        return anime_list
 
     def get_latest_episodes(self) -> dict:
         """Fetch the 'Ultimi Episodi' from the homepage of AnimeWorld."""

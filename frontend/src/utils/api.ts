@@ -16,11 +16,27 @@ const api = axios.create({
   withCredentials: false,
 })
 
-// Aggiungi automaticamente X-Session-Id a ogni richiesta
+// Aggiungi automaticamente X-Session-Id e Authorization a ogni richiesta
 api.interceptors.request.use((config) => {
   config.headers['X-Session-Id'] = getSessionId()
+  
+  const token = localStorage.getItem('anisearch_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  
   return config
 })
+
+export const uploadAvatar = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return (await api.post<{url: string}>('/upload-avatar', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })).data
+}
 
 export interface Anime {
   id: string;
@@ -66,6 +82,10 @@ export const getRecentWatchProgress = async () => {
 }
 
 export const getFavorites = async () => (await api.get<Anime[]>('/favorites')).data
+export const getRecommendations = async (limit = 12) => {
+  const data = (await api.get<Anime[]>('/recommendations', { params: { limit } })).data
+  return Array.isArray(data) ? data : []
+}
 export const addFavorite = async (animeId: string) => (await api.post(`/favorites/${animeId}`)).data
 export const removeFavoriteApi = async (animeId: string) => (await api.delete(`/favorites/${animeId}`)).data
 
@@ -143,6 +163,7 @@ export const getRecentMangaWatchProgress = async () => {
   const data = (await api.get('/manga-watch')).data
   return Array.isArray(data) ? data : []
 }
+export const deleteMangaWatchProgress = async (mangaId: string) => (await api.delete(`/manga-watch/${mangaId}`)).data
 
 export const getMangaFavorites = async () => (await api.get<Manga[]>('/manga-favorites')).data
 export const addMangaFavorite = async (mangaId: string) => (await api.post(`/manga-favorites/${mangaId}`)).data
@@ -157,5 +178,15 @@ export const addMangaWatchlist = async (mangaId: string, status: string = 'da_le
 export const updateMangaWatchlist = async (mangaId: string, status: string, chaptersRead?: number, chaptersTotal?: number, notes?: string) =>
   (await api.put(`/manga-watchlist/${mangaId}`, null, { params: { status, ...(chaptersRead != null && { chapters_read: chaptersRead }), ...(chaptersTotal != null && { chapters_total: chaptersTotal }), ...(notes != null && { notes }) } })).data
 export const removeMangaWatchlistApi = async (mangaId: string) => (await api.delete(`/manga-watchlist/${mangaId}`)).data
+
+// ---------------- NOTIFICATIONS API ----------------
+export const getVapidPublicKey = async () => (await api.get<{public_key: string}>('/notifications/vapid-public-key')).data.public_key
+export const subscribePush = async (subscription: PushSubscription) => (await api.post('/notifications/subscribe', subscription)).data
+
+// ---------------- WATCH PARTY API ----------------
+export const createParty = async (animeId: string, episodeId: string, animeTitle: string, episodeTitle: string) =>
+  (await api.post<{room_id: string}>('/party/create', null, { params: { anime_id: animeId, episode_id: episodeId, anime_title: animeTitle, episode_title: episodeTitle } })).data
+export const getPartyInfo = async (roomId: string) =>
+  (await api.get<{room_id: string, anime_id: string, episode_id: string, anime_title: string, episode_title: string, member_count: number}>(`/party/${roomId}/info`)).data
 
 export default api
