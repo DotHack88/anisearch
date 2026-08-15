@@ -272,7 +272,7 @@ app.include_router(auth_router)
 # --- Auth helper rimosso in favore di verify_admin_token ---
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     """API root — welcome message and available endpoints."""
     return {
@@ -294,7 +294,7 @@ def root():
     }
 
 
-@app.get("/status")
+@app.api_route("/status", methods=["GET", "HEAD"])
 async def status():
     anime_count = await db.count()
     episode_count = await db.count_episodes()
