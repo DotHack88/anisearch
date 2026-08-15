@@ -846,3 +846,99 @@ async def remove_manga_watchlist(manga_id: str, session_id: str = Depends(get_or
     return {"status": "deleted"}
 
 
+@app.get("/recommendations")
+async def get_recommendations(
+    limit: int = Query(12, ge=1, le=50),
+    session_id: str = Depends(get_or_create_session)
+):
+    """
+    Suggerisce anime basandosi su:
+    1. Generi dei preferiti/cronologia della sessione corrente
+    2. Fallback: anime dal catalogo in ordine casuale
+    """
+    import random
+
+    # Raccoglie generi dai preferiti
+    favorite_genres: list[str] = []
+    try:
+        favorites = await db.get_favorites(session_id)
+        if isinstance(favorites, list):
+            for anime in favorites:
+                if isinstance(anime, dict):
+                    favorite_genres.extend(anime.get("genres") or [])
+    except Exception:
+        pass
+
+    # Raccoglie generi dalla cronologia di visione
+    try:
+        watch_history = await db.get_recent_watch_progress(session_id, limit=20)
+        if isinstance(watch_history, list):
+            for item in watch_history:
+                if isinstance(item, dict):
+                    favorite_genres.extend(item.get("genres") or [])
+    except Exception:
+        pass
+
+    # Conta i generi più frequenti
+    genre_counts: dict[str, int] = {}
+    for g in favorite_genres:
+        if g:
+            genre_counts[g] = genre_counts.get(g, 0) + 1
+
+    top_genres = sorted(genre_counts, key=lambda x: genre_counts[x], reverse=True)[:3]
+
+    results: list = []
+
+    # Cerca anime per genere preferito
+    if top_genres:
+        for genre in top_genres:
+            try:
+                page_result = await db.get_all(
+                    page=0,
+                    per_page=limit * 2,
+                    sort_by="title",
+                    genre=genre,
+                    status="",
+                    year="",
+                    search="",
+                )
+                items = page_result.get("items", []) if isinstance(page_result, dict) else []
+                results.extend(items)
+            except Exception:
+                pass
+
+        # Deduplication per id
+        seen: set = set()
+        unique: list = []
+        for a in results:
+            aid = a.get("id") if isinstance(a, dict) else None
+            if aid and aid not in seen:
+                seen.add(aid)
+                unique.append(a)
+        results = unique
+
+    # Fallback: anime dal catalogo se non ci sono abbastanza risultati
+    if len(results) < limit:
+        try:
+            fallback = await db.get_all(
+                page=0,
+                per_page=limit * 3,
+                sort_by="title",
+                genre="",
+                status="",
+                year="",
+                search="",
+            )
+            fb_items = fallback.get("items", []) if isinstance(fallback, dict) else []
+            existing_ids = {a.get("id") for a in results if isinstance(a, dict)}
+            for item in fb_items:
+                if isinstance(item, dict) and item.get("id") not in existing_ids:
+                    results.append(item)
+                    if len(results) >= limit * 2:
+                        break
+        except Exception:
+            pass
+
+    # Shuffle per varietà e tronca al limite
+    random.shuffle(results)
+    return results[:limit]
