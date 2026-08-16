@@ -189,4 +189,35 @@ export const createParty = async (animeId: string, episodeId: string, animeTitle
 export const getPartyInfo = async (roomId: string) =>
   (await api.get<{room_id: string, anime_id: string, episode_id: string, anime_title: string, episode_title: string, member_count: number}>(`/party/${roomId}/info`)).data
 
+// ---------------- SMART TV CAST API (DLNA/UPnP — solo rete locale) ----------------
+
+export interface CastDevice {
+  id: string;
+  name: string;
+  model: string;
+  manufacturer: string;
+  type: 'samsung' | 'lg' | 'sony' | 'philips' | 'fire' | 'apple' | 'roku' | 'tv';
+  device_url: string;
+  av_transport_url: string;
+}
+
+export const getCastDevices = async (): Promise<{ devices: CastDevice[]; count: number }> =>
+  (await api.get<{ devices: CastDevice[]; count: number }>('/cast/devices')).data
+
+export const castPlay = async (
+  deviceUrl: string,
+  videoUrl: string,
+  title: string,
+  imageUrl?: string
+) => (await api.post('/cast/play', { device_url: deviceUrl, video_url: videoUrl, title, image_url: imageUrl || '' })).data
+
+export const castPause = async (deviceUrl: string) =>
+  (await api.post('/cast/pause', { device_url: deviceUrl })).data
+
+export const castStop = async (deviceUrl: string) =>
+  (await api.post('/cast/stop', { device_url: deviceUrl })).data
+
+export const getCastStatus = async (deviceUrl: string) =>
+  (await api.get<{ state: string; available: boolean; device_name?: string }>('/cast/status', { params: { device_url: deviceUrl } })).data
+
 export default api

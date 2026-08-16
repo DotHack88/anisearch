@@ -3,9 +3,11 @@ import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import api, { getEpisodeVideo, getAnimeDetail, saveWatchProgress, deleteWatchProgress, searchAnime, createParty, getPartyInfo } from '../utils/api'
 import { useDownloads } from '../hooks/useDownloads.js'
 import { useChromecast } from '../hooks/useChromecast.js'
+import { useDLNA } from '../hooks/useDLNA.js'
 import AnimeCard from '../components/AnimeCard.jsx'
 import VideoPlayer from '../components/VideoPlayer.jsx'
 import WatchPartyPanel from '../components/WatchPartyPanel.jsx'
+import CastDeviceModal from '../components/CastDeviceModal.jsx'
 
 export default function WatchPage() {
   const { animeId, episodeId } = useParams()
@@ -46,6 +48,7 @@ export default function WatchPage() {
   const [partyIsHost, setPartyIsHost] = useState(false)
   const [partyNickname] = useState(() => 'Ospite' + Math.floor(Math.random() * 9000 + 1000))
   const [showPartyPanel, setShowPartyPanel] = useState(false)
+  const [showCastModal, setShowCastModal] = useState(false)
   const sessionIdRef = useRef(null)
 
   // Detect ?party=XXXX in URL (for guests joining via link)
@@ -136,20 +139,36 @@ export default function WatchPage() {
   } = useDownloads()
 
   // Chromecast hook
-  const { isCastAvailable, isCasting, castState, requestSession, loadMedia } = useChromecast()
+  const { isCastAvailable, isCasting: isCastingChromecast, castState: chromecastState, requestSession, loadMedia } = useChromecast()
+
+  // DLNA / UPnP hook
+  const dlna = useDLNA()
 
   // Sincronizza media sul Chromecast se è in corso un cast
   useEffect(() => {
-    if (isCasting && videoUrl) {
+    if (isCastingChromecast && videoUrl) {
       // Ferma il player locale
       if (videoRef.current) {
         videoRef.current.pause()
       }
 
+      const currentIdx = episodes.findIndex(e => String(e.id) === String(episodeId))
       const fullTitle = `${animeTitle} - Ep ${episodes[currentIdx]?.number || ''}`
       loadMedia(videoUrl, fullTitle, tmdbEpisodeTitle || 'AniSearch', animeImage)
     }
-  }, [isCasting, videoUrl, episodeId])
+  }, [isCastingChromecast, videoUrl, episodeId])
+
+  // Sincronizza media su DLNA
+  useEffect(() => {
+    if (dlna.isCasting && dlna.selectedDevice && videoUrl) {
+      if (videoRef.current) {
+        videoRef.current.pause()
+      }
+      const currentIdx = episodes.findIndex(e => String(e.id) === String(episodeId))
+      const fullTitle = `${animeTitle} - Ep ${episodes[currentIdx]?.number || ''}`
+      dlna.castToDevice(dlna.selectedDevice, videoUrl, fullTitle, animeImage)
+    }
+  }, [videoUrl, episodeId]) // Riproduci auto nuovo episodio
 
   // Fetch episodes if missing
   useEffect(() => {
@@ -652,14 +671,16 @@ export default function WatchPage() {
                       isGuest={Boolean(partyRoomId && !partyIsHost)}
                     />
                   )}
-                  {isCasting && !loading && !error && (
+                  {(isCastingChromecast || dlna.isCasting) && !loading && !error && (
                     <div className="absolute inset-0 bg-black/90 z-40 flex flex-col items-center justify-center text-center">
                       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" className="mb-4 animate-pulse">
                         <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
                         <line x1="2" y1="20" x2="2.01" y2="20" strokeWidth="3"></line>
                       </svg>
                       <h3 className="text-xl font-bold font-display text-white tracking-wide">In Riproduzione su TV</h3>
-                      <p className="text-sm text-text-dim mt-2 max-w-md">Controlla la riproduzione dal tuo dispositivo Google Cast.</p>
+                      <p className="text-sm text-text-dim mt-2 max-w-md">
+                        {dlna.isCasting ? `Riproduzione attiva su ${dlna.selectedDevice?.name || 'Smart TV'}.` : 'Controlla la riproduzione dal tuo dispositivo Google Cast.'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -772,11 +793,11 @@ export default function WatchPage() {
                   )}
                 </button>
 
-                {isCastAvailable && castState !== 'NO_DEVICES_AVAILABLE' && (
+                {isCastAvailable && chromecastState !== 'NO_DEVICES_AVAILABLE' && (
                   <button
                     onClick={requestSession}
                     className={`px-4 py-2 rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-1.5 border
-                    ${isCasting
+                    ${isCastingChromecast
                         ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20 shadow-lg shadow-blue-500/10 animate-pulse'
                         : 'bg-surface border-border hover:border-blue-400/40 text-text-dim hover:text-text hover:bg-blue-500/5'}`}
                     title="Trasmetti alla TV (Chromecast)"
@@ -785,9 +806,25 @@ export default function WatchPage() {
                       <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
                       <line x1="2" y1="20" x2="2.01" y2="20"></line>
                     </svg>
-                    {isCasting ? 'In Trasmissione' : 'Chromecast'}
+                    {isCastingChromecast ? 'In Trasmissione' : 'Chromecast'}
                   </button>
                 )}
+
+                {/* DLNA / Smart TV Button */}
+                <button
+                  onClick={() => setShowCastModal(true)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold font-body transition-all flex items-center gap-1.5 border
+                  ${dlna.isCasting
+                      ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20 shadow-lg shadow-blue-500/10 animate-pulse'
+                      : 'bg-surface border-border hover:border-blue-400/40 text-text-dim hover:text-text hover:bg-blue-500/5'}`}
+                  title="Trasmetti a Smart TV, Fire Stick, ecc."
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+                    <polyline points="17 2 12 7 7 2"></polyline>
+                  </svg>
+                  {dlna.isCasting ? 'In Trasmissione' : 'Trasmetti alla TV'}
+                </button>
 
                 {/* Watch Party Button */}
                 <button
@@ -895,6 +932,25 @@ export default function WatchPage() {
           </div>
         </div>
       )}
+
+      <CastDeviceModal
+        isOpen={showCastModal}
+        onClose={() => setShowCastModal(false)}
+        devices={dlna.devices}
+        isScanning={dlna.isScanning}
+        scanError={dlna.scanError}
+        onScan={dlna.scanDevices}
+        onSelectDevice={(device) => {
+          const fullTitle = `${animeTitle} - Ep ${episodes.find(e => String(e.id) === String(episodeId))?.number || ''}`;
+          dlna.castToDevice(device, videoUrl, fullTitle, animeImage);
+        }}
+        castState={dlna.castState}
+        selectedDevice={dlna.selectedDevice}
+        castError={dlna.castError}
+        onPause={dlna.pauseDLNA}
+        onResume={dlna.resumeDLNA}
+        onStop={dlna.stopDLNA}
+      />
     </div>
   )
 }

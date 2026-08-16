@@ -268,6 +268,10 @@ app.include_router(tmdb_router)
 from backend.auth import router as auth_router
 app.include_router(auth_router)
 
+# Smart TV Casting (DLNA/UPnP — funziona solo in rete locale)
+from backend.casting import router as casting_router  # noqa: E402
+app.include_router(casting_router, prefix="/cast", tags=["casting"])
+
 
 # --- Auth helper rimosso in favore di verify_admin_token ---
 

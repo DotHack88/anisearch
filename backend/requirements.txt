@@ -16,3 +16,4 @@ asyncpg>=0.29.0
 passlib[bcrypt]>=1.7.4
 PyJWT>=2.8.0
 pydantic[email]>=2.0.0
+async-upnp-client>=0.38.0
