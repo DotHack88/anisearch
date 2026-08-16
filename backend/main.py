@@ -765,12 +765,8 @@ async def manga_detail(manga_id: str):
     return {**base, **detail}
 
 @app.get("/manga/chapter/{chapter_id}/images")
-async def get_chapter_images(chapter_id: str):
+async def get_chapter_images(chapter_id: str, manga_id: str = Query(None)):
     """Ottieni le immagini di un capitolo."""
-    # /read/manga-slug/en/chapter-number format typically
-    # We will need the full url. We can assume the scraper handles just the chapter ID if we modify it, 
-    # but currently get_chapter_images requires a full URL or relative URL. 
-    # Let's search the DB for the chapter to get its URL.
     from sqlmodel import select
     from backend.database import engine, Chapter
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -780,7 +776,14 @@ async def get_chapter_images(chapter_id: str):
         chapter = result.one_or_none()
         
     if not chapter or not chapter.url:
-        raise HTTPException(404, "Capitolo non trovato nel DB, visita prima la pagina del manga")
+        if manga_id:
+            await manga_detail(manga_id)
+            async with AsyncSession(engine) as session:
+                result = await session.exec(select(Chapter).where(Chapter.id == chapter_id))
+                chapter = result.one_or_none()
+                
+        if not chapter or not chapter.url:
+            raise HTTPException(404, "Capitolo non trovato nel DB, visita prima la pagina del manga")
         
     images = await asyncio.to_thread(manga_scraper.get_chapter_images, chapter.url)
     return {"chapter_id": chapter_id, "images": images}
@@ -799,8 +802,22 @@ async def get_manga_watch_item(manga_id: str, session_id: str = Depends(get_or_c
 
 @app.post("/manga-watch/{manga_id}")
 async def save_manga_watch(manga_id: str, chapter_id: str = Query(...), session_id: str = Depends(get_or_create_session)):
+    from sqlmodel import select
+    from backend.database import engine, Chapter
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    
+    async with AsyncSession(engine) as session:
+        chap = await session.exec(select(Chapter).where(Chapter.id == chapter_id))
+        if not chap.one_or_none():
+            await manga_detail(manga_id)
+            
     await manga_db.save_progress(session_id, manga_id, chapter_id)
     return {"status": "saved", "manga_id": manga_id, "chapter_id": chapter_id}
+
+@app.delete("/manga-watch/{manga_id}")
+async def delete_manga_watch(manga_id: str, session_id: str = Depends(get_or_create_session)):
+    await manga_db.delete_progress(session_id, manga_id)
+    return {"status": "deleted", "manga_id": manga_id}
 
 @app.get("/manga-favorites")
 async def get_manga_favorites(session_id: str = Depends(get_or_create_session)):

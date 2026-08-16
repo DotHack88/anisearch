@@ -155,7 +155,7 @@ export interface MangaWatchlistItem extends Manga {
 export const searchManga = async (q: string) => (await api.get<{results: Manga[]}>('/manga/search', { params: { q } })).data.results
 export const getMangaDetail = async (id: string) => (await api.get<Manga & { chapters: Chapter[], description?: string, author?: string, artist?: string }>(`/manga/${id}`)).data
 export const getMangaCatalog = async (params: Record<string, unknown>) => (await api.get<MangaCatalogResponse>('/manga/catalog', { params })).data
-export const getChapterImages = async (chapterId: string) => (await api.get<{ chapter_id: string, images: string[] }>(`/manga/chapter/${chapterId}/images`)).data
+export const getChapterImages = async (chapterId: string, mangaId?: string) => (await api.get<{ chapter_id: string, images: string[] }>(`/manga/chapter/${chapterId}/images`, { params: mangaId ? { manga_id: mangaId } : {} })).data
 
 export const saveMangaWatchProgress = async (mangaId: string, chapterId: string) => (await api.post(`/manga-watch/${mangaId}`, null, { params: { chapter_id: chapterId } })).data;
 export const getMangaWatchProgress = async (mangaId: string) => (await api.get(`/manga-watch/${mangaId}`)).data

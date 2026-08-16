@@ -237,7 +237,7 @@ class MangaWorldScraper:
             vol = vol_span.get_text(strip=True) if vol_span else ""
             
             # Extract chapter id from url: /read/manga-slug/en/chapter-number
-            ch_id = href.strip("/").split("/")[-1]
+            ch_id = href.strip("/").split("/")[-1].split("?")[0]
             
             chapters.append({
                 "id": ch_id,
@@ -338,7 +338,7 @@ class MangaWorldScraper:
                 ch_href = a.get("href", "")
                 ch_title = a.get("title", a.get_text(strip=True))
                 # Extract chapter ID from URL: last path segment
-                ch_id = ch_href.rstrip("/").split("/")[-1]
+                ch_id = ch_href.rstrip("/").split("/")[-1].split("?")[0]
                 is_new = bool(ch_div.select_one("img[alt='Nuovo']"))
                 chapters.append({
                     "id": ch_id,

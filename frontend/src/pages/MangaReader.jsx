@@ -33,7 +33,7 @@ export default function MangaReader() {
     setCurrentPage(0)
     window.scrollTo(0, 0)
 
-    getChapterImages(chapterId)
+    getChapterImages(chapterId, mangaId)
       .then(data => {
         setImages(data.images || [])
         if (data.images?.length === 0) setError('Nessuna immagine trovata per questo capitolo.')
