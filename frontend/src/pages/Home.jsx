@@ -7,6 +7,8 @@ import LatestChapters from '../components/LatestChapters.jsx'
 import ContinueWatchingCarousel from '../components/ContinueWatchingCarousel.jsx'
 import RecommendationsCarousel from '../components/RecommendationsCarousel.jsx'
 import { useFavorites } from '../hooks/useFavorites.jsx'
+import { useMangaFavorites } from '../hooks/useMangaFavorites.jsx'
+import MangaCard from '../components/MangaCard.jsx'
 import { getStatus, getRecentWatchProgress, deleteWatchProgress, getRecentMangaWatchProgress, deleteMangaWatchProgress } from '../utils/api'
 
 function AnimatedCounter({ value }) {
@@ -53,6 +55,7 @@ function AnimatedCounter({ value }) {
 
 export default function Home() {
   const { favorites, removeFavorite } = useFavorites()
+  const { favorites: mangaFavorites, removeFavorite: removeMangaFavorite } = useMangaFavorites()
   const [status, setStatus] = useState(null)
   const [recentWatch, setRecentWatch] = useState([])
   const [recentMangaRead, setRecentMangaRead] = useState([])
@@ -233,7 +236,7 @@ export default function Home() {
       </section>
 
       {/* Preferiti */}
-      {favorites.length > 0 && (
+      {(favorites.length > 0 || mangaFavorites.length > 0) && (
         <section className="max-w-6xl mx-auto w-full px-4 pb-16">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-2xl tracking-wide text-text flex items-center gap-2">
@@ -243,8 +246,18 @@ export default function Home() {
             <Link to="/favorites" className="text-xs text-muted hover:text-accent font-body transition-colors">Vedi tutti →</Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-            {favorites.slice(0, 8).map(anime => (
-              <AnimeCard key={anime.id} anime={anime} onRemove={removeFavorite} />
+            {[
+              ...favorites.map(f => ({ ...f, _type: 'anime' })),
+              ...mangaFavorites.map(f => ({ ...f, _type: 'manga' }))
+            ].sort((a, b) => {
+              // Try to sort by added time if possible, otherwise interleave by id or fallback
+              const tA = a.addedAt || a.id;
+              const tB = b.addedAt || b.id;
+              return tB > tA ? 1 : -1;
+            }).slice(0, 8).map(item => (
+              item._type === 'anime'
+                ? <AnimeCard key={`anime-${item.id}`} anime={item} onRemove={removeFavorite} />
+                : <MangaCard key={`manga-${item.id}`} manga={item} onRemove={removeMangaFavorite} />
             ))}
           </div>
         </section>
