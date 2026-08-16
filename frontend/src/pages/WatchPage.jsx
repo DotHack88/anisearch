@@ -35,6 +35,8 @@ export default function WatchPage() {
   const [showSpeedBadge, setShowSpeedBadge] = useState(false)
   const autoplayTimerRef = useRef(null)
   const speedTimeoutRef = useRef(null)
+  const hasSkippedIntroRef = useRef(false)
+  const introTimerRef = useRef(null)
   const [lightsOff, setLightsOff] = useState(false)
   const [ambilightActive, setAmbilightActive] = useState(true)
   const [cinemaMode, setCinemaMode] = useState(() => localStorage.getItem('cinema_mode') === 'true')
@@ -282,6 +284,12 @@ export default function WatchPage() {
     const parsed = saved ? parseFloat(saved) : 0
     initialTimeRef.current = !isNaN(parsed) && parsed > 0 ? parsed : 0
   }, [animeId, episodeId])
+  
+  // Reset intro skip state when episode changes
+  useEffect(() => {
+    hasSkippedIntroRef.current = false;
+    if (introTimerRef.current) clearTimeout(introTimerRef.current);
+  }, [episodeId]);
 
   // Save watch progress periodically via timeupdate.
   // Also controls Skip Intro/Outro visibility.
@@ -289,10 +297,24 @@ export default function WatchPage() {
   const onVideoTimeUpdate = useCallback((time, duration) => {
     const storageKey = `watch_progress_${animeId}_${episodeId}`
     localStorage.setItem(storageKey, time)
+    if (duration > 0) {
+      localStorage.setItem(`watch_progress_pct_${animeId}_${episodeId}`, Math.floor((time / duration) * 100))
+    }
 
     // Check Skip Intro visibility (first 5 minutes / 300s of the video)
-    const shouldShowIntro = time >= 5 && time <= 300
-    setShowSkipIntro(prev => prev !== shouldShowIntro ? shouldShowIntro : prev)
+    const shouldShowIntro = time >= 5 && time <= 300 && !hasSkippedIntroRef.current
+    
+    if (shouldShowIntro && !showSkipIntro) {
+      setShowSkipIntro(true)
+      if (introTimerRef.current) clearTimeout(introTimerRef.current)
+      // Nascondi automaticamente dopo 5 secondi
+      introTimerRef.current = setTimeout(() => {
+        setShowSkipIntro(false)
+        hasSkippedIntroRef.current = true
+      }, 5000)
+    } else if (!shouldShowIntro && showSkipIntro) {
+      setShowSkipIntro(false)
+    }
 
     // Check Skip Outro visibility (last 20s of video, if total duration > 300s)
     if (duration && duration > 300) {
@@ -301,7 +323,7 @@ export default function WatchPage() {
     } else {
       setShowSkipOutro(false)
     }
-  }, [animeId, episodeId])
+  }, [animeId, episodeId, showSkipIntro])
 
   // Ambilight canvas rendering loop
   useEffect(() => {
@@ -653,7 +675,11 @@ export default function WatchPage() {
                       isOfflinePlay={isOfflinePlay}
                       showSkipIntro={showSkipIntro}
                       showSkipOutro={showSkipOutro}
-                      showSkipIntroAction={() => { if (videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 90) }}
+                      showSkipIntroAction={() => { 
+                        if (videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 90)
+                        hasSkippedIntroRef.current = true
+                        setShowSkipIntro(false)
+                      }}
                       showSkipOutroAction={() => { if (nextEp) handleNavigateEp(nextEp); else if (videoRef.current) videoRef.current.currentTime = videoRef.current.duration - 2 }}
                       showSpeedBadge={showSpeedBadge}
                       currentSpeed={currentSpeed}

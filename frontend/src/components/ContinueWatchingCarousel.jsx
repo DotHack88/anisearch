@@ -103,9 +103,9 @@ export default function ContinueWatchingCarousel() {
                   Episodio {item.episode_number}
                 </p>
                 
-                {/* Visual Progress Bar (simulated for now, as real timestamp is in localStorage not backend) */}
+                {/* Visual Progress Bar */}
                 <div className="w-full h-1 bg-white/20 rounded-full mt-3 overflow-hidden">
-                  <div className="h-full bg-accent rounded-full" style={{ width: '50%' }}></div>
+                  <div className="h-full bg-accent rounded-full" style={{ width: `${localStorage.getItem('watch_progress_pct_' + item.anime_id + '_' + item.episode_id) || 5}%` }}></div>
                 </div>
               </div>
             </Link>

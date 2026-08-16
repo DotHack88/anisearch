@@ -37,11 +37,11 @@ export default function Navbar() {
           <Link to="/catalog"
             className={`text-sm font-body transition-colors flex items-center gap-1.5
               ${pathname === '/catalog' ? 'text-accent' : 'text-muted hover:text-text'}`}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+              <polyline points="17 2 12 7 7 2"></polyline>
             </svg>
-            Catalogo
+            Anime
           </Link>
           <Link to="/manga/catalog"
             className={`text-sm font-body transition-colors flex items-center gap-1.5
@@ -117,11 +117,11 @@ export default function Navbar() {
             <Link to="/catalog" onClick={() => setMenuOpen(false)}
               className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-body transition-colors
                 ${pathname === '/catalog' ? 'text-accent bg-accent/10' : 'text-text-dim hover:text-text hover:bg-surface'}`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-              Catalogo
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+                  <polyline points="17 2 12 7 7 2"></polyline>
+                </svg>
+                Anime
             </Link>
             <Link to="/manga/catalog" onClick={() => setMenuOpen(false)}
               className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-body transition-colors
