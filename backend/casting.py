@@ -58,7 +58,11 @@ async def _ssdp_discover(timeout: float = 4.0) -> list[dict[str, str]]:
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 4)
     sock.settimeout(0.1)
     try:
+        # Send standard MediaRenderer search
         sock.sendto(SSDP_MSEARCH.encode(), (SSDP_ADDR, SSDP_PORT))
+        # Samsung Tizen TVs sometimes only respond to rootdevice or ssdp:all
+        msearch_root = SSDP_MSEARCH.replace(SSDP_ST_RENDERER, "upnp:rootdevice")
+        sock.sendto(msearch_root.encode(), (SSDP_ADDR, SSDP_PORT))
     except Exception as e:
         logger.warning(f"SSDP send failed: {e}")
         sock.close()

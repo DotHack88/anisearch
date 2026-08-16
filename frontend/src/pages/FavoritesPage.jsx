@@ -14,23 +14,25 @@ export default function FavoritesPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-center gap-3 mb-8">
-        <Link to="/" className="text-muted hover:text-text transition-colors">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
-        </Link>
-        <h1 className="font-display text-4xl tracking-wide">I MIEI PREFERITI</h1>
+      <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-3 mb-8">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="text-muted hover:text-text transition-colors">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
+          </Link>
+          <h1 className="font-display text-3xl md:text-4xl tracking-wide">I MIEI PREFERITI</h1>
+        </div>
         
         {/* Tabs */}
-        <div className="ml-auto flex bg-surface border border-border p-1 rounded-xl">
+        <div className="md:ml-auto w-full md:w-auto flex bg-surface border border-border p-1 rounded-xl">
           <button 
             onClick={() => setActiveTab('anime')}
-            className={`px-6 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'anime' ? 'bg-accent text-white shadow-lg' : 'text-text-dim hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'anime' ? 'bg-accent text-white shadow-lg' : 'text-text-dim hover:text-white'}`}
           >
             Anime ({animeFavorites.length})
           </button>
           <button 
             onClick={() => setActiveTab('manga')}
-            className={`px-6 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'manga' ? 'bg-accent text-white shadow-lg' : 'text-text-dim hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'manga' ? 'bg-accent text-white shadow-lg' : 'text-text-dim hover:text-white'}`}
           >
             Manga ({mangaFavorites.length})
           </button>
