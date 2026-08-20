@@ -44,8 +44,23 @@ export default function SearchBar({ large = false, autoFocus = false }) {
     if (!isOpen) return
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)) }
     if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, -1)) }
-    if (e.key === 'Enter' && activeIdx >= 0 && results.length > 0) select(results[activeIdx])
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && results.length > 0) {
+        select(results[activeIdx])
+      } else if (query.trim().length > 0) {
+        navigateToSearch()
+      }
+    }
     if (e.key === 'Escape') { setIsOpen(false); inputRef.current?.blur() }
+  }
+
+  const navigateToSearch = () => {
+    if (query.trim().length > 0) {
+      setIsOpen(false);
+      inputRef.current?.blur();
+      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+    }
   }
 
   const select = (item) => { 
@@ -80,10 +95,13 @@ export default function SearchBar({ large = false, autoFocus = false }) {
           onChange={handleImageChange} 
         />
 
-        {/* Icona sinistra (Lens / non uso più lo spinner qui) */}
-        <span className={`absolute ${large ? 'left-5' : 'left-3.5'} top-1/2 -translate-y-1/2 text-muted pointer-events-none`}>
+        {/* Icona sinistra (Lens / Click per cercare) */}
+        <button 
+          onClick={navigateToSearch}
+          className={`absolute ${large ? 'left-5' : 'left-3.5'} top-1/2 -translate-y-1/2 text-muted hover:text-accent transition-colors`}
+        >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-        </span>
+        </button>
 
         <input
           ref={inputRef}

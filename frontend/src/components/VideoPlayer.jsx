@@ -121,10 +121,11 @@ export default function VideoPlayer({
   const plyrOptions = useMemo(() => ({
     controls: isGuest 
       ? ['current-time', 'duration', 'mute', 'volume', 'fullscreen']
-      : ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'pip', 'airplay', 'fullscreen'],
+      : ['play-large', 'rewind', 'play', 'fast-forward', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'pip', 'airplay', 'fullscreen'],
     clickToPlay: !isGuest,
     settings: isGuest ? [] : ['speed', 'loop'],
     speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
+    seekTime: 10,
     keyboard: { focused: !isGuest, global: !isGuest },
     storage: { enabled: true, key: 'plyr_volume' },
     attributes: { crossorigin: 'anonymous' }

@@ -6,7 +6,7 @@ import { getSessionId } from './session'
 // - Produzione (Render + Vercel): https://anisearch-8jph.onrender.com/api
 //   Nginx su Render proxia /api/* → uvicorn. Senza il prefisso /api, Nginx serve la SPA React.
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (
-  import.meta.env.DEV ? 'http://localhost:8000' : 'https://anisearch-8jph.onrender.com/api'
+  import.meta.env.DEV ? 'http://127.0.0.1:8000' : 'https://anisearch-8jph.onrender.com/api'
 )
 
 

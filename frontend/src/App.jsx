@@ -21,6 +21,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
+import SearchPage from './pages/SearchPage.jsx'
 
 // Mostra il loader una sola volta per sessione browser
 const hasSeenLoader = sessionStorage.getItem('anisearch_loader_seen')
@@ -42,6 +43,7 @@ export default function App() {
         <ErrorBoundary>
           <Routes>
             <Route path="/"              element={<Home />} />
+            <Route path="/search"        element={<SearchPage />} />
             <Route path="/catalog"       element={<CatalogPage />} />
             <Route path="/anime/:id"     element={<AnimePage />} />
             <Route path="/watch/:animeId/:episodeId" element={<WatchPage />} />

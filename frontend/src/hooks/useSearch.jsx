@@ -25,15 +25,15 @@ export function useSearch(debounceMs = 300) {
       const mappedAnime = animeData.map(a => ({ ...a, mediaType: 'anime' }))
       const mappedManga = mangaData.map(m => ({ ...m, mediaType: 'manga' }))
       
-      // Mescola in modo bilanciato (max 3 anime, 2 manga di default)
+      // Mescola i risultati (max 10 anime, 10 manga)
       const combined = [
-        ...mappedAnime.slice(0, 3),
-        ...mappedManga.slice(0, 2)
+        ...mappedAnime.slice(0, 10),
+        ...mappedManga.slice(0, 10)
       ]
-      // Se non arriviamo a 5, riempiamo con i rimanenti (anime o manga)
-      if (combined.length < 5) {
-        const extras = [...mappedAnime.slice(3), ...mappedManga.slice(2)]
-        combined.push(...extras.slice(0, 5 - combined.length))
+      // Se non arriviamo a 20, riempiamo con i rimanenti
+      if (combined.length < 20) {
+        const extras = [...mappedAnime.slice(10), ...mappedManga.slice(10)]
+        combined.push(...extras.slice(0, 20 - combined.length))
       }
       
       queryCache.set(key, combined)
