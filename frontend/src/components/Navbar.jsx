@@ -32,9 +32,11 @@ export default function Navbar() {
           </div>
         )}
 
-        {/* Desktop nav */}
-        <nav className="ml-auto hidden sm:flex items-center gap-4">
-          <Link to="/catalog"
+        {/* Right section with nav and user controls */}
+        <div className="ml-auto flex items-center gap-2 sm:gap-4">
+          {/* Desktop nav */}
+          <nav className="hidden sm:flex items-center gap-4">
+            <Link to="/catalog"
             className={`text-sm font-body transition-colors flex items-center gap-1.5
               ${pathname === '/catalog' ? 'text-accent' : 'text-muted hover:text-text'}`}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -86,23 +88,24 @@ export default function Navbar() {
               </span>
             )}
           </Link>
+          </nav>
           
           <NotificationBell />
           <UserMenu />
-        </nav>
 
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="sm:hidden ml-auto p-2 text-muted hover:text-text transition-colors"
-          aria-label="Menu"
-        >
-          {menuOpen ? (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
-          ) : (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18" /></svg>
-          )}
-        </button>
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="sm:hidden p-2 text-muted hover:text-text transition-colors"
+            aria-label="Menu"
+          >
+            {menuOpen ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18" /></svg>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu dropdown */}

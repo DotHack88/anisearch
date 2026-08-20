@@ -12,3 +12,6 @@ dist/
 build/
 *.db
 *.sqlite
+
+.vercel
+.env*.local
