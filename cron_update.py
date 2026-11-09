@@ -16,13 +16,8 @@ sys.path.insert(0, str(root))
 load_dotenv(root / ".env")
 load_dotenv(root / "backend" / ".env")
 
-# Se non definita in env, usa la connessione Neon di default
 if not os.getenv("DATABASE_URL"):
-    os.environ["DATABASE_URL"] = (
-        "postgresql://neondb_owner:npg_efrDzXyh7lk8"
-        "@ep-flat-dawn-abwjcau1-pooler.eu-west-2.aws.neon.tech"
-        "/neondb?ssl=require"
-    )
+    raise ValueError("DATABASE_URL non configurato nelle variabili d'ambiente. Impostalo prima di eseguire cron_update.py.")
 
 from backend.database import AnimeDatabase
 from backend.scraper import AnimeWorldScraper

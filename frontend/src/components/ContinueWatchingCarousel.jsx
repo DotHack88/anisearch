@@ -28,8 +28,9 @@ export default function ContinueWatchingCarousel() {
     try {
       localStorage.removeItem(`watch_${animeId}_${episodeId}`)
       localStorage.removeItem(`watch_progress_${animeId}_${episodeId}`)
+      localStorage.removeItem(`watch_progress_pct_${animeId}_${episodeId}`)
       await deleteWatchProgress(animeId, episodeId)
-      setHistory(prev => prev.filter(item => item.anime_id !== animeId))
+      setHistory(prev => prev.filter(item => !(item.anime_id === animeId && item.episode_id === episodeId)))
     } catch (err) {
       console.error('Error removing watch progress:', err)
     }
@@ -59,12 +60,12 @@ export default function ContinueWatchingCarousel() {
       
       <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory">
         {history.map((item) => {
-          // If we have a saved timestamp in localStorage, we can use it to resume directly
-          // but for now we just link to the episode. The VideoPlayer logic already reads from localStorage
+          const rawPct = Number(localStorage.getItem('watch_progress_pct_' + item.anime_id + '_' + item.episode_id));
+          const pct = !isNaN(rawPct) && rawPct > 0 ? Math.min(100, Math.max(0, rawPct)) : 5;
           return (
             <Link
               to={`/watch/${item.anime_id}/${item.episode_id}`}
-              key={item.anime_id}
+              key={`${item.anime_id}-${item.episode_id}`}
               className="flex-none w-[280px] sm:w-[320px] group relative rounded-2xl overflow-hidden snap-start focus:outline-none focus:ring-2 focus:ring-accent"
             >
               {/* Background Image */}
@@ -105,7 +106,7 @@ export default function ContinueWatchingCarousel() {
                 
                 {/* Visual Progress Bar */}
                 <div className="w-full h-1 bg-white/20 rounded-full mt-3 overflow-hidden">
-                  <div className="h-full bg-accent rounded-full" style={{ width: `${localStorage.getItem('watch_progress_pct_' + item.anime_id + '_' + item.episode_id) || 5}%` }}></div>
+                  <div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }}></div>
                 </div>
               </div>
             </Link>

@@ -7,6 +7,7 @@ Usage:
     python build_db.py --dry-run        # Show what would be scraped without writing to DB
 """
 
+import sys
 import argparse
 import logging
 import asyncio
@@ -41,6 +42,11 @@ def main():
         action="store_true",
         help="Scrape data but do not write anything to the database.",
     )
+    parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Skip confirmation prompt for complete rebuild.",
+    )
     args = parser.parse_args()
 
     db = SyncAnimeDatabase()
@@ -74,10 +80,14 @@ def main():
         added = new_count - existing_count
         print(f"Scraping incrementale completato! +{added} nuovi anime (totale: {new_count})")
     else:
-        answer = input("⚠️  Rebuild completo: verranno cancellati tutti i dati. Continuare? [y/N] ")
-        if answer.lower() != "y":
-            print("Operazione annullata.")
-            return
+        if not args.yes:
+            if not sys.stdin.isatty():
+                print("Ambiente non interattivo rilevato senza flag --yes. Rebuild annullato per sicurezza.")
+                return
+            answer = input("⚠️  Rebuild completo: verranno cancellati tutti i dati. Continuare? [y/N] ")
+            if answer.lower() != "y":
+                print("Operazione annullata.")
+                return
         print("Avvio rebuild completo del catalogo. Questo richiederà alcuni minuti...")
         db.clear()
         scraper.build_full_index(db, batch_mode="replace")

@@ -1,6 +1,9 @@
 import sqlite3
+import os
+from pathlib import Path
 
-db_path = r'c:\Users\Emanuele\Desktop\home\claude\anisearch\backend\anisearch.db'
+default_db = Path(__file__).resolve().parent / 'backend' / 'anisearch.db'
+db_path = os.getenv('DB_PATH') or str(default_db)
 conn = sqlite3.connect(db_path)
 cur = conn.cursor()
 cur.execute("PRAGMA table_info(watchlist)")

@@ -6,7 +6,8 @@ import { useSearch } from './useSearch.jsx';
 vi.mock('../utils/api', () => ({
   searchAnime: vi.fn(() => Promise.resolve([
     { id: '1', title: 'Naruto', genres: [] }
-  ]))
+  ])),
+  searchManga: vi.fn(() => Promise.resolve([]))
 }));
 
 describe('useSearch', () => {

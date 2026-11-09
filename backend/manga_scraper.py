@@ -239,12 +239,16 @@ class MangaWorldScraper:
             # Extract chapter id from url: /read/manga-slug/en/chapter-number
             ch_id = href.strip("/").split("/")[-1].split("?")[0]
             
+            # Normalizza il numero capitolo: estrae la componente numerica o usa -1.0 per extra/speciali
+            num_match = re.search(r'(\d+(?:\.\d+)?)', ch_id)
+            ch_number = float(num_match.group(1)) if num_match else -1.0
+            
             chapters.append({
                 "id": ch_id,
                 "url": href,
                 "title": title,
                 "volume": vol,
-                "number": ch_id
+                "number": ch_number
             })
             
         detail["chapters"] = chapters
@@ -268,7 +272,7 @@ class MangaWorldScraper:
             if '"pages"' not in raw:
                 continue
             try:
-                m = re.search(r'\({"o":{.*', raw)
+                m = re.search(r'\({"o":{.*', raw, re.DOTALL)
                 if not m:
                     continue
                 text = m.group(0).strip("()")

@@ -124,7 +124,7 @@ export default function SearchBar({ large = false, autoFocus = false }) {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
           )}
-          <button onClick={() => fileInputRef.current.click()} title="Ricerca per Immagine (Screenshot, Loghi, Fanart)" className="text-muted hover:text-accent p-1.5 transition-colors">
+          <button onClick={() => fileInputRef.current?.click()} title="Ricerca per Immagine (Screenshot, Loghi, Fanart)" className="text-muted hover:text-accent p-1.5 transition-colors">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
               <circle cx="12" cy="13" r="4"></circle>

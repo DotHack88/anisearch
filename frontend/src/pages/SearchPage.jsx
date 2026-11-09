@@ -14,6 +14,7 @@ export default function SearchPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    let active = true
     if (!q) {
       setAnimeResults([])
       setMangaResults([])
@@ -28,13 +29,18 @@ export default function SearchPage() {
       searchAnime(q).catch(() => []),
       searchManga(q).catch(() => [])
     ]).then(([anime, manga]) => {
+      if (!active) return
       setAnimeResults(anime || [])
       setMangaResults(manga || [])
     }).catch(() => {
-      setError('Errore durante la ricerca. Riprova più tardi.')
+      if (active) setError('Errore durante la ricerca. Riprova più tardi.')
     }).finally(() => {
-      setLoading(false)
+      if (active) setLoading(false)
     })
+
+    return () => {
+      active = false
+    }
   }, [q])
 
   return (

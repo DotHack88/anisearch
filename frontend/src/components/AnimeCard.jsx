@@ -22,8 +22,12 @@ export default function AnimeCard({ anime, onRemove }) {
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={e => {
-            e.target.src = `https://img.animeworld.ac/copertine/${anime.id}.png`
-            e.target.onerror = () => { e.target.style.display = 'none' }
+            const fallback = `https://img.animeworld.ac/copertine/${anime.id}.png`
+            if (e.target.src !== fallback) {
+              e.target.src = fallback
+            } else {
+              e.target.style.display = 'none'
+            }
           }}
         />
 

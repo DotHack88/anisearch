@@ -332,6 +332,7 @@ export default function WatchPage() {
 
     const ctx = canvas.getContext('2d')
     let animationFrameId
+    let isDrawing = false
 
     const draw = () => {
       const video = videoRef.current
@@ -342,7 +343,7 @@ export default function WatchPage() {
       }
 
       if (video.paused || video.ended) {
-        animationFrameId = requestAnimationFrame(draw)
+        isDrawing = false
         return
       }
       try {
@@ -374,16 +375,33 @@ export default function WatchPage() {
       animationFrameId = requestAnimationFrame(draw)
     }
 
-    draw()
+    const startDraw = () => {
+      if (!isDrawing) {
+        isDrawing = true
+        draw()
+      }
+    }
+
+    const video = videoRef.current
+    if (video) {
+      video.addEventListener('play', startDraw)
+      video.addEventListener('playing', startDraw)
+    }
+
+    startDraw()
 
     return () => {
       cancelAnimationFrame(animationFrameId)
+      if (video) {
+        video.removeEventListener('play', startDraw)
+        video.removeEventListener('playing', startDraw)
+      }
     }
   }, [ambilightActive, videoUrl, offlineUrl, loading])
 
 
   // Navigation handlers
-  const currentIdx = episodes.findIndex(ep => ep.id === episodeId)
+  const currentIdx = episodes.findIndex(ep => String(ep.id) === String(episodeId))
   const prevEp = currentIdx > 0 ? episodes[currentIdx - 1] : null
   const nextEp = currentIdx >= 0 && currentIdx < episodes.length - 1 ? episodes[currentIdx + 1] : null
 

@@ -6,15 +6,18 @@ import asyncio
 import sys
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
-# Assicurati che DATABASE_URL punti a Neon
-os.environ["DATABASE_URL"] = (
-    "postgresql://neondb_owner:npg_efrDzXyh7lk8"
-    "@ep-flat-dawn-abwjcau1-pooler.eu-west-2.aws.neon.tech"
-    "/neondb?ssl=require"
-)
+root = Path(__file__).resolve().parent
+sys.path.append(str(root))
 
-sys.path.append(str(Path(__file__).resolve().parent))
+# Carica variabili d'ambiente
+load_dotenv(root / ".env")
+load_dotenv(root / "backend" / ".env")
+
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    raise ValueError("DATABASE_URL non configurato nelle variabili d'ambiente. Impostalo prima di eseguire seed_neon.py.")
 
 from backend.database import AnimeDatabase
 from backend.scraper import AnimeWorldScraper

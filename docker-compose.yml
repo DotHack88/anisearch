@@ -9,7 +9,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - ADMIN_TOKEN=${ADMIN_TOKEN}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8080}
-      - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-1}
     env_file:
       - .env
     depends_on:

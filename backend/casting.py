@@ -8,6 +8,7 @@ Works only when the backend runs on the same LAN as the TV.
 import asyncio
 import logging
 import socket
+import html
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -211,18 +212,21 @@ _SOAP_GET_STATUS = """<u:GetTransportInfo xmlns:u="urn:schemas-upnp-org:service:
 
 def _build_didl(video_url: str, title: str, image_url: str) -> str:
     """Build a minimal DIDL-Lite metadata XML for AVTransport."""
-    img_tag = f'<upnp:albumArtURI>{image_url}</upnp:albumArtURI>' if image_url else ""
-    return (
-        '&lt;DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
+    escaped_title = html.escape(title or "")
+    escaped_url = html.escape(video_url or "")
+    img_tag = f"<upnp:albumArtURI>{html.escape(image_url)}</upnp:albumArtURI>" if image_url else ""
+    didl_xml = (
+        '<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
         'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" '
-        'xmlns:dc="http://purl.org/dc/elements/1.1/"&gt;'
-        f'&lt;item id="0" parentID="-1" restricted="0"&gt;'
-        f'&lt;dc:title&gt;{title}&lt;/dc:title&gt;'
-        f'&lt;upnp:class&gt;object.item.videoItem&lt;/upnp:class&gt;'
+        'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        f'<item id="0" parentID="-1" restricted="0">'
+        f'<dc:title>{escaped_title}</dc:title>'
+        f'<upnp:class>object.item.videoItem</upnp:class>'
         f'{img_tag}'
-        f'&lt;res protocolInfo="http-get:*:video/mp4:*"&gt;{video_url}&lt;/res&gt;'
-        f'&lt;/item&gt;&lt;/DIDL-Lite&gt;'
+        f'<res protocolInfo="http-get:*:video/mp4:*">{escaped_url}</res>'
+        f'</item></DIDL-Lite>'
     )
+    return html.escape(didl_xml)
 
 
 async def _soap_action(control_url: str, action: str, body: str) -> str:

@@ -101,9 +101,8 @@ EOF
 # Expose only port 80 (nginx serves both frontend and proxies API)
 EXPOSE 80
 
-# Environment variables
+# Environment variables (ADMIN_TOKEN and secrets should be provided at runtime via docker run -e or docker-compose)
 ENV REDIS_URL=redis://redis:6379
-ENV ADMIN_TOKEN=""
 ENV ALLOWED_ORIGINS=""
 ENV UVICORN_WORKERS="1"
 

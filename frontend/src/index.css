@@ -385,3 +385,19 @@ input[type=number]::-webkit-inner-spin-button {
   letter-spacing: 0.05em;
   font-weight: 600;
 }
+
+/* ==========================================
+   Christmas Theme Overrides (Festive Touches)
+   ========================================== */
+.christmas-theme {
+  --color-accent: #e53935;
+  --color-accent-h: #ffd700;
+}
+
+.christmas-theme header {
+  border-bottom-color: rgba(229, 57, 53, 0.25) !important;
+}
+
+.christmas-theme .group:hover img {
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.2));
+}

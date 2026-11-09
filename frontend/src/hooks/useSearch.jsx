@@ -1,7 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { searchAnime, searchManga } from '../utils/api'
 
+const MAX_CACHE_SIZE = 100
 const queryCache = new Map()
+
+function setCachedQuery(key, value) {
+  if (queryCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = queryCache.keys().next().value
+    queryCache.delete(firstKey)
+  }
+  queryCache.set(key, value)
+}
 
 export function useSearch(debounceMs = 300) {
   const [query,   setQuery]   = useState('')
@@ -11,6 +20,7 @@ export function useSearch(debounceMs = 300) {
   const [isOpen,  setIsOpen]  = useState(false)
   const [imageResult, setImageResult] = useState(null)
   const timer = useRef(null)
+  const lastImageSearchTime = useRef(0)
 
   const doSearch = useCallback(async (q) => {
     if (q.length < 2) { setResults([]); setIsOpen(false); return }
@@ -36,7 +46,7 @@ export function useSearch(debounceMs = 300) {
         combined.push(...extras.slice(0, 20 - combined.length))
       }
       
-      queryCache.set(key, combined)
+      setCachedQuery(key, combined)
       setResults(combined); setIsOpen(true)
     } catch {
       setError('Errore di rete. Il backend è avviato?')
@@ -107,6 +117,14 @@ export function useSearch(debounceMs = 300) {
       setIsOpen(true);
       return;
     }
+
+    const now = Date.now();
+    if (now - lastImageSearchTime.current < 5000) {
+      setError("Attendi qualche secondo prima di effettuare un'altra ricerca per immagine.");
+      setIsOpen(true);
+      return;
+    }
+    lastImageSearchTime.current = now;
     
     setLoading(true);
     setError(null);
@@ -122,10 +140,18 @@ export function useSearch(debounceMs = 300) {
       const formData = new FormData();
       formData.append("image", compressedBlob, "image.jpg");
       
-      const traceResponse = await fetch("https://api.trace.moe/search?anilistInfo", {
-        method: "POST",
-        body: formData
-      });
+      const traceController = new AbortController();
+      const traceTimeout = setTimeout(() => traceController.abort(), 10000);
+      let traceResponse;
+      try {
+        traceResponse = await fetch("https://api.trace.moe/search?anilistInfo", {
+          method: "POST",
+          body: formData,
+          signal: traceController.signal
+        });
+      } finally {
+        clearTimeout(traceTimeout);
+      }
       
       let traceSuccess = false;
       let bestMatch = null;
@@ -160,10 +186,18 @@ export function useSearch(debounceMs = 300) {
       const sauceForm = new FormData();
       sauceForm.append("file", compressedBlob, "image.jpg");
       
-      const sauceResponse = await fetch("https://saucenao.com/search.php?output_type=2", {
-        method: "POST",
-        body: sauceForm
-      });
+      const sauceController = new AbortController();
+      const sauceTimeout = setTimeout(() => sauceController.abort(), 10000);
+      let sauceResponse;
+      try {
+        sauceResponse = await fetch("https://saucenao.com/search.php?output_type=2", {
+          method: "POST",
+          body: sauceForm,
+          signal: sauceController.signal
+        });
+      } finally {
+        clearTimeout(sauceTimeout);
+      }
 
       if (sauceResponse.ok) {
         const sauceData = await sauceResponse.json();

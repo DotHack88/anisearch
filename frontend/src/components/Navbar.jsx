@@ -5,8 +5,9 @@ import { useDownloads } from '../hooks/useDownloads.js'
 import SyncModal from './SyncModal.jsx'
 import UserMenu from './UserMenu.jsx'
 import NotificationBell from './NotificationBell.jsx'
+import ChristmasLights from './ChristmasLights.jsx'
 
-export default function Navbar() {
+export default function Navbar({ isChristmas = false, onToggleChristmas }) {
   const { pathname } = useLocation()
   const isHome = pathname === '/'
   const { activeCount } = useDownloads()
@@ -19,9 +20,20 @@ export default function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-bg/80 backdrop-blur-md border-b border-border">
+    <header className="sticky top-0 z-40 bg-bg/80 backdrop-blur-md border-b border-border relative">
+      {isChristmas && <ChristmasLights />}
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
-        <Link to="/" className="flex-shrink-0 flex items-baseline">
+        <Link to="/" className="flex-shrink-0 flex items-baseline relative group">
+          {isChristmas && (
+            <span
+              className="absolute -top-3 -left-2 text-base select-none transform -rotate-12 transition-transform duration-300 group-hover:rotate-0 group-hover:scale-110 drop-shadow-md"
+              title="Buone Feste!"
+              role="img"
+              aria-label="Cappello di Babbo Natale"
+            >
+              🎅
+            </span>
+          )}
           <span className="font-display text-2xl text-accent tracking-wider">ANI</span>
           <span className="font-display text-2xl text-text tracking-wider">SEARCH</span>
         </Link>
@@ -90,6 +102,23 @@ export default function Navbar() {
           </Link>
           </nav>
           
+          {onToggleChristmas && (
+            <button
+              onClick={onToggleChristmas}
+              title={isChristmas ? "Disattiva tema natalizio" : "Attiva tema natalizio 🎄"}
+              aria-label="Toggle tema natalizio"
+              className={`p-2 rounded-xl border transition-all duration-300 text-sm flex items-center justify-center ${
+                isChristmas
+                  ? "bg-red-500/15 border-red-500/40 text-red-400 shadow-sm shadow-red-500/20 hover:scale-105"
+                  : "bg-surface border-border text-muted hover:text-text hover:border-accent/40"
+              }`}
+            >
+              <span className="transform transition-transform hover:rotate-12 select-none">
+                {isChristmas ? "🎄" : "❄️"}
+              </span>
+            </button>
+          )}
+
           <NotificationBell />
           <UserMenu />
 

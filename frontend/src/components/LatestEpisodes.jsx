@@ -86,10 +86,18 @@ export default function LatestEpisodes({ limit }) {
         {currentItems.map((item, index) => (
           <Link key={index} to={`/anime/${item.id}`} state={item} className="group relative rounded-xl overflow-hidden aspect-[3/4] bg-surface block border border-border/40 hover:border-accent/40 transition-colors">
             <img 
-              src={item.image} 
+              src={item.image || `https://img.animeworld.ac/copertine/${item.id || item.anime_id}.png`} 
               alt={item.title} 
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               loading="lazy"
+              onError={e => {
+                const fallback = `https://img.animeworld.ac/copertine/${item.id || item.anime_id}.png`
+                if (e.target.src !== fallback) {
+                  e.target.src = fallback
+                } else {
+                  e.target.style.display = 'none'
+                }
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
             

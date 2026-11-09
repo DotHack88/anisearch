@@ -22,68 +22,95 @@ export function useWatchlist() {
   }, [fetchWatchlist])
 
   const addToWatchlist = (anime, status = 'da_guardare', episodesTotal = null) => {
-    addWatchlist(anime.id, status, 0, episodesTotal)
-      .then(() => {
-        const newItem = {
-          ...anime,
-          watchlist_status: status,
-          episodes_watched: 0,
-          episodes_total: episodesTotal,
-          progress: 0,
-          notes: null,
-          added_at: new Date().toISOString(),
-          last_update: new Date().toISOString(),
-          completed_at: status === 'completato' ? new Date().toISOString() : null,
-        }
-        setWatchlist(prev => {
-          const exists = prev.find(a => a.id === anime.id)
-          if (exists) {
-            return prev.map(a => a.id === anime.id ? { ...a, ...newItem } : a)
-          }
-          return [newItem, ...prev]
-        })
-        setStats(prev => prev ? refreshStats([...watchlist.filter(a => a.id !== anime.id), newItem]) : prev)
+    let prevWatchlistSnapshot = []
+    let prevStatsSnapshot = null
+    const newItem = {
+      ...anime,
+      watchlist_status: status,
+      episodes_watched: 0,
+      episodes_total: episodesTotal,
+      progress: 0,
+      notes: null,
+      added_at: new Date().toISOString(),
+      last_update: new Date().toISOString(),
+      completed_at: status === 'completato' ? new Date().toISOString() : null,
+    }
+
+    setWatchlist(prev => {
+      prevWatchlistSnapshot = prev
+      const exists = prev.find(a => a.id === anime.id)
+      const updated = exists
+        ? prev.map(a => (a.id === anime.id ? { ...a, ...newItem } : a))
+        : [newItem, ...prev]
+      setStats(prevStats => {
+        prevStatsSnapshot = prevStats
+        return prevStats ? refreshStats(updated) : prevStats
       })
-      .catch(err => console.error('Errore aggiunta watchlist:', err))
+      return updated
+    })
+
+    addWatchlist(anime.id, status, 0, episodesTotal).catch(err => {
+      console.error('Errore aggiunta watchlist (rollback):', err)
+      setWatchlist(prevWatchlistSnapshot)
+      setStats(prevStatsSnapshot)
+    })
   }
 
   const updateStatus = (animeId, status, episodesWatched, episodesTotal, notes) => {
-    updateWatchlist(animeId, status, episodesWatched, episodesTotal, notes)
-      .then(() => {
-        setWatchlist(prev => {
-          const updated = prev.map(a => {
-            if (a.id !== animeId) return a
-            const watched = episodesWatched ?? a.episodes_watched
-            const total = episodesTotal ?? a.episodes_total
-            const progress = total && total > 0 ? Math.min(100, Math.round((watched / total) * 100)) : a.progress
-            return {
-              ...a,
-              watchlist_status: status,
-              episodes_watched: watched,
-              episodes_total: total,
-              progress,
-              notes: notes ?? a.notes,
-              last_update: new Date().toISOString(),
-              completed_at: status === 'completato' ? (a.completed_at || new Date().toISOString()) : null,
-            }
-          })
-          setStats(refreshStats(updated))
-          return updated
-        })
+    let prevWatchlistSnapshot = []
+    let prevStatsSnapshot = null
+
+    setWatchlist(prev => {
+      prevWatchlistSnapshot = prev
+      const updated = prev.map(a => {
+        if (a.id !== animeId) return a
+        const watched = episodesWatched ?? a.episodes_watched
+        const total = episodesTotal ?? a.episodes_total
+        const progress = total && total > 0 ? Math.min(100, Math.round((watched / total) * 100)) : a.progress
+        return {
+          ...a,
+          watchlist_status: status,
+          episodes_watched: watched,
+          episodes_total: total,
+          progress,
+          notes: notes ?? a.notes,
+          last_update: new Date().toISOString(),
+          completed_at: status === 'completato' ? (a.completed_at || new Date().toISOString()) : null,
+        }
       })
-      .catch(err => console.error('Errore aggiornamento watchlist:', err))
+      setStats(prevStats => {
+        prevStatsSnapshot = prevStats
+        return prevStats ? refreshStats(updated) : prevStats
+      })
+      return updated
+    })
+
+    updateWatchlist(animeId, status, episodesWatched, episodesTotal, notes).catch(err => {
+      console.error('Errore aggiornamento watchlist (rollback):', err)
+      setWatchlist(prevWatchlistSnapshot)
+      setStats(prevStatsSnapshot)
+    })
   }
 
   const removeWatchlist = (animeId) => {
-    removeWatchlistApi(animeId)
-      .then(() => {
-        setWatchlist(prev => {
-          const updated = prev.filter(a => a.id !== animeId)
-          setStats(refreshStats(updated))
-          return updated
-        })
+    let prevWatchlistSnapshot = []
+    let prevStatsSnapshot = null
+
+    setWatchlist(prev => {
+      prevWatchlistSnapshot = prev
+      const updated = prev.filter(a => a.id !== animeId)
+      setStats(prevStats => {
+        prevStatsSnapshot = prevStats
+        return prevStats ? refreshStats(updated) : prevStats
       })
-      .catch(err => console.error('Errore rimozione watchlist:', err))
+      return updated
+    })
+
+    removeWatchlistApi(animeId).catch(err => {
+      console.error('Errore rimozione watchlist (rollback):', err)
+      setWatchlist(prevWatchlistSnapshot)
+      setStats(prevStatsSnapshot)
+    })
   }
 
   const getItemStatus = (animeId) => {

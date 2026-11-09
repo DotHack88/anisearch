@@ -28,6 +28,8 @@ export default function VideoPlayer({
   useEffect(() => {
     let timeout
     let seeked = false
+    let attachedMedia = null
+    let activeDoSeek = null
 
     const attachRef = () => {
       const media = plyrRef.current?.plyr?.media
@@ -37,48 +39,52 @@ export default function VideoPlayer({
       if (media && initialTimeRef && !seeked) {
         const t = initialTimeRef.current
         if (t > 0) {
-          // canplay fires when enough data is available to begin playback.
-          // We use it (instead of loadedmetadata) to ensure we can actually seek.
           const doSeek = () => {
             if (seeked) return
             seeked = true
-            // Avoid seeking past the end
             if (!media.duration || t < media.duration - 5) {
               media.currentTime = t
             }
             media.removeEventListener('canplay', doSeek)
           }
           if (media.readyState >= 3) {
-            // Already have enough data — seek immediately
             doSeek()
           } else {
+            attachedMedia = media
+            activeDoSeek = doSeek
             media.addEventListener('canplay', doSeek)
           }
         }
       }
     }
 
-    // Attempt immediately then retry after Plyr's internal 100ms mount
     attachRef()
     timeout = setTimeout(attachRef, 150)
-    return () => clearTimeout(timeout)
+    return () => {
+      clearTimeout(timeout)
+      if (attachedMedia && activeDoSeek) {
+        attachedMedia.removeEventListener('canplay', activeDoSeek)
+      }
+    }
   }, [src, externalVideoRef, initialTimeRef])
 
   // Attach event listeners to the media element instead of plyr instance.
   // Also wires up onTimeUpdate for saving progress in WatchPage.
   useEffect(() => {
-    // Retry attaching if media is not immediately available
-    let media = null;
-    let timeout;
-    let lastSaveTime = 0;
+    let destroyed = false
+    let timerId = null
+    let cleanupListeners = null
 
     const attachEvents = () => {
-      media = plyrRef.current?.plyr?.media || plyrRef.current?.plyr?.elements?.original;
+      const media = plyrRef.current?.plyr?.media || plyrRef.current?.plyr?.elements?.original
       if (!media) {
-        timeout = setTimeout(attachEvents, 100);
-        return;
+        if (!destroyed) {
+          timerId = setTimeout(attachEvents, 100)
+        }
+        return
       }
 
+      let lastSaveTime = 0
       const handlePlay = () => setIsPlaying(true)
       const handlePause = () => setIsPlaying(false)
       const handleEnded = () => {
@@ -97,24 +103,20 @@ export default function VideoPlayer({
       media.addEventListener('ended', handleEnded)
       media.addEventListener('timeupdate', handleTimeUpdate)
 
-      timeout = {
-        cleanup: () => {
-          media.removeEventListener('play', handlePlay)
-          media.removeEventListener('pause', handlePause)
-          media.removeEventListener('ended', handleEnded)
-          media.removeEventListener('timeupdate', handleTimeUpdate)
-        }
+      cleanupListeners = () => {
+        media.removeEventListener('play', handlePlay)
+        media.removeEventListener('pause', handlePause)
+        media.removeEventListener('ended', handleEnded)
+        media.removeEventListener('timeupdate', handleTimeUpdate)
       }
     }
 
     attachEvents()
 
     return () => {
-      if (timeout && timeout.cleanup) {
-        timeout.cleanup()
-      } else if (timeout) {
-        clearTimeout(timeout)
-      }
+      destroyed = true
+      if (timerId) clearTimeout(timerId)
+      if (cleanupListeners) cleanupListeners()
     }
   }, [onEnded, onTimeUpdate])
 

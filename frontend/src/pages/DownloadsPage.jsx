@@ -102,6 +102,11 @@ export default function DownloadsPage() {
   }
 
   // Simulate speed tracking for active downloads
+  const downloadsRef = useRef(downloads)
+  useEffect(() => {
+    downloadsRef.current = downloads
+  }, [downloads])
+
   useEffect(() => {
     const active = downloads.filter(d => d.status === 'downloading')
     if (active.length === 0) {
@@ -115,7 +120,8 @@ export default function DownloadsPage() {
     const interval = setInterval(() => {
       setSpeeds(prev => {
         const next = { ...prev }
-        active.forEach(d => {
+        const currentActive = downloadsRef.current.filter(d => d.status === 'downloading')
+        currentActive.forEach(d => {
           const delta = (d.progress || 0) - (prevProgress[d.episodeId] || 0)
           prevProgress[d.episodeId] = d.progress || 0
           const sizePerPct = (d.size || 50 * 1024 * 1024) / 100 // estimate from total size
@@ -343,7 +349,10 @@ function DownloadRow({ item, speed, formatSize, onCancel, onDelete, selectMode, 
           src={item.animeImage || `https://img.animeworld.ac/locandine/${item.animeId}.jpg`}
           alt={item.animeTitle}
           className="w-full h-full object-cover"
-          onError={e => { e.target.src = `https://img.animeworld.ac/copertine/${item.animeId}.png` }}
+          onError={e => {
+            e.target.onerror = null
+            e.target.src = `https://img.animeworld.ac/copertine/${item.animeId}.png`
+          }}
         />
         {isDownloading && (
           <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center p-1">

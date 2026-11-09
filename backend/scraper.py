@@ -39,6 +39,17 @@ class AnimeWorldScraper:
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
 
+    def close(self):
+        """Close the underlying requests Session."""
+        if hasattr(self, "session") and self.session:
+            self.session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def _fetch(self, url: str, retries: int = 3) -> Optional[BeautifulSoup]:
         for attempt in range(1, retries + 1):
             try:
@@ -52,6 +63,8 @@ class AnimeWorldScraper:
                     logger.warning(f"403 su {url}")
                     return None
                 logger.warning(f"HTTP {code} su {url} (tentativo {attempt})")
+                if attempt < retries:
+                    time.sleep(self.delay * attempt)
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Errore rete (tentativo {attempt}): {e}")
                 if attempt < retries:
@@ -73,7 +86,8 @@ class AnimeWorldScraper:
                 )
                 resp.raise_for_status()
                 return resp.json()
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Fetch JSON error on attempt {attempt} for {url}: {e}")
                 if attempt < retries:
                     time.sleep(self.delay * attempt)
         return None
@@ -85,7 +99,8 @@ class AnimeWorldScraper:
                 resp = self.session.get(url, timeout=self.timeout)
                 resp.raise_for_status()
                 return resp.text
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Fetch text error on attempt {attempt} for {url}: {e}")
                 if attempt < retries:
                     time.sleep(self.delay * attempt)
         return None
@@ -424,14 +439,14 @@ class AnimeWorldScraper:
 
         return result
 
-    def scrape_latest_updates(self, db, loop=None) -> None:
+    def scrape_latest_updates(self, db, loop=None) -> list[dict]:
         """Scrape the latest updates page and add/update them in the DB."""
         logger.info("Avvio scraping nuovi episodi...")
         url = f"{BASE_URL}/updated"
         soup = self._fetch(url)
         if not soup:
             logger.warning("Scraping nuovi episodi fallito: nessuna risposta.")
-            return
+            return []
 
         # /updated page uses the same .item layout as the A-Z list
         items = soup.select(".item")

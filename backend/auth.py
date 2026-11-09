@@ -10,13 +10,23 @@ from passlib.context import CryptContext
 import jwt
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import select
-from backend.database import engine, User
+from sqlmodel import select, col
+from sqlalchemy import delete
+from backend.database import engine, User, PasswordReset
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-key-change-me")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    if os.getenv("ENVIRONMENT") == "development":
+        SECRET_KEY = "dev-insecure-secret-key-3f41f0a4517bec3e138e39b68d91e835"
+        import logging
+        logging.warning("JWT_SECRET non impostato: usando una chiave di sviluppo temporanea.")
+    else:
+        raise RuntimeError("CRITICAL: JWT_SECRET non configurato nelle variabili d'ambiente.")
+
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "anisearch-app")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 
@@ -27,12 +37,17 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    now = datetime.now(timezone.utc)
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire})
+        expire = now + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    to_encode.update({
+        "exp": expire,
+        "iat": now,
+        "aud": JWT_AUDIENCE,
+    })
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -113,7 +128,13 @@ async def login(user_data: UserLogin):
 
 async def get_current_user(token: str) -> Optional[User]:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            audience=JWT_AUDIENCE,
+            options={"verify_exp": True, "verify_aud": True},
+        )
         user_id = payload.get("sub")
         if user_id is None:
             return None
@@ -201,26 +222,22 @@ async def update_profile(
 
 
 # --- Password Reset ---
-# In-memory token store: {token: {"user_id": str, "expires": datetime}}
-# For production use the DB or Redis.
-_reset_tokens: dict = {}
-
 @router.post("/forgot-password")
 async def forgot_password(data: ForgotPasswordRequest):
-    """Generate a password-reset token. Sends email if SMTP is configured, otherwise returns the token directly."""
+    """Generate a password-reset token. Sends email if SMTP is configured, otherwise persists to DB and returns generic message in production."""
     async with AsyncSession(engine) as session:
         result = await session.exec(select(User).where(User.email == data.email))
         user = result.first()
 
-    # Always return 200 to avoid email enumeration
-    if not user:
-        return {"detail": "Se l'email esiste nel sistema, riceverai le istruzioni per il reset."}
+        # Always return 200 to avoid email enumeration
+        if not user:
+            return {"detail": "Se l'email esiste nel sistema, riceverai le istruzioni per il reset."}
 
-    token = secrets.token_urlsafe(32)
-    _reset_tokens[token] = {
-        "user_id": user.id,
-        "expires": datetime.now(timezone.utc) + timedelta(minutes=30),
-    }
+        token = secrets.token_urlsafe(32)
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+        reset_entry = PasswordReset(token=token, user_id=user.id, expires_at=expires_at)
+        session.add(reset_entry)
+        await session.commit()
 
     # Try SMTP if configured
     smtp_host = os.getenv("SMTP_HOST")
@@ -253,46 +270,57 @@ async def forgot_password(data: ForgotPasswordRequest):
                 server.sendmail(from_addr, [data.email], msg.as_string())
             return {"detail": "Email di reset inviata. Controlla la tua casella di posta.", "email_sent": True}
         except Exception:
-            pass  # Fall through to token response
+            pass  # Fall through to fallback response
 
-    # No SMTP: return token directly (dev/local mode)
-    return {
-        "detail": "Nessun server email configurato. Usa il token qui sotto per reimpostare la password.",
-        "reset_token": token,
-        "expires_in_minutes": 30,
-    }
+    # If in development mode and SMTP is absent, return token for local debugging
+    if os.getenv("ENVIRONMENT") == "development":
+        return {
+            "detail": "Nessun server email configurato. Token generato (visibile solo in ENVIRONMENT=development).",
+            "reset_token": token,
+            "expires_in_minutes": 30,
+        }
+
+    return {"detail": "Se l'email esiste nel sistema, riceverai le istruzioni per il reset."}
 
 
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest):
-    """Reset the password using a valid token."""
-    entry = _reset_tokens.get(data.token)
-    if not entry:
-        raise HTTPException(status_code=400, detail="Token non valido o già utilizzato.")
-    if datetime.now(timezone.utc) > entry["expires"]:
-        _reset_tokens.pop(data.token, None)
-        raise HTTPException(status_code=400, detail="Token scaduto. Richiedi un nuovo reset della password.")
-
-    if len(data.new_password) < 6:
-        raise HTTPException(status_code=400, detail="La password deve essere di almeno 6 caratteri.")
-
+    """Reset the password using a valid token stored in DB."""
+    now_iso = datetime.now(timezone.utc).isoformat()
     async with AsyncSession(engine) as session:
-        result = await session.exec(select(User).where(User.id == entry["user_id"]))
-        user = result.first()
+        # Pulizia preventiva dei token scaduti
+        await session.exec(delete(PasswordReset).where(PasswordReset.expires_at < now_iso))  # type: ignore
+
+        result = await session.exec(select(PasswordReset).where(PasswordReset.token == data.token))  # type: ignore
+        entry = result.first()
+        if not entry:
+            raise HTTPException(status_code=400, detail="Token non valido o già utilizzato.")
+
+        if entry.expires_at < now_iso:
+            await session.delete(entry)
+            await session.commit()
+            raise HTTPException(status_code=400, detail="Token scaduto. Richiedi un nuovo reset della password.")
+
+        if len(data.new_password) < 6:
+            raise HTTPException(status_code=400, detail="La password deve essere di almeno 6 caratteri.")
+
+        user_result = await session.exec(select(User).where(User.id == entry.user_id))
+        user = user_result.first()
         if not user:
             raise HTTPException(status_code=404, detail="Utente non trovato.")
+
         user.hashed_password = get_password_hash(data.new_password)
         session.add(user)
+        await session.delete(entry)
         await session.commit()
 
-    _reset_tokens.pop(data.token, None)
     return {"detail": "Password reimpostata con successo. Puoi ora accedere con la nuova password."}
 
 
 @router.get("/google/login")
 async def google_login():
-    raise HTTPException(status_code=501, detail="Il Social Login con Google non è ancora configurato. Inserisci i Client ID nel backend.")
+    return {"configured": False, "detail": "Il Social Login con Google non è ancora configurato. Inserisci i Client ID nel backend."}
 
 @router.get("/discord/login")
 async def discord_login():
-    raise HTTPException(status_code=501, detail="Il Social Login con Discord non è ancora configurato. Inserisci i Client ID nel backend.")
+    return {"configured": False, "detail": "Il Social Login con Discord non è ancora configurato. Inserisci i Client ID nel backend."}

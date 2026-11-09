@@ -1,8 +1,10 @@
 import os
 import json
 import logging
+import asyncio
+import datetime as dt
 from typing import List, Dict, Optional, Any
-from datetime import datetime, timezone
+from datetime import timezone
 
 from sqlmodel import SQLModel, Field, select, col
 from sqlalchemy import func, delete
@@ -120,6 +122,12 @@ class PushSubscription(SQLModel, table=True):
     p256dh: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+class PasswordReset(SQLModel, table=True):
+    token: str = Field(primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    expires_at: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
 # ---------- Manga Models ----------
 class Manga(SQLModel, table=True):
     id: Optional[str] = Field(default=None, primary_key=True)
@@ -193,15 +201,19 @@ def _row_to_dict(row: Any) -> dict:
 class AnimeDatabase:
     def __init__(self):
         self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     async def _ensure_init(self) -> None:
         """Lazy init: create tables on first async call."""
         if self._initialized:
             return
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
-        self._initialized = True
-        logger.info("Database tables created / verified.")
+        async with self._init_lock:
+            if self._initialized:
+                return
+            async with engine.begin() as conn:
+                await conn.run_sync(SQLModel.metadata.create_all)
+            self._initialized = True
+            logger.info("Database tables created / verified.")
 
     # ----- Basic operations -----
     async def count(self) -> int:
@@ -407,7 +419,13 @@ class AnimeDatabase:
             elif sort_by == "year":
                 stmt = stmt.order_by(Anime.year.desc())  # type: ignore
             elif sort_by == "rating":
-                stmt = stmt.order_by(Anime.rating.cast(float).desc())  # type: ignore
+                from sqlalchemy import case, cast, Float
+                stmt = stmt.order_by(
+                    case(
+                        (col(Anime.rating).in_(["", "N/A", "None"]) | (col(Anime.rating) == None), 0.0),  # type: ignore
+                        else_=cast(func.nullif(col(Anime.rating), ""), Float)
+                    ).desc()
+                )
             # Total count
             count_stmt = select(func.count()).select_from(stmt.subquery())
             total_res = await session.exec(count_stmt)
@@ -502,12 +520,11 @@ class AnimeDatabase:
 
     # ----- Watch Progress -----
     async def save_watch_progress(self, session_id: str, anime_id: str, episode_id: str) -> None:
-        import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(WatchProgress).where(WatchProgress.anime_id == anime_id, WatchProgress.session_id == session_id))  # type: ignore
             wp = result.one_or_none()
-            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            now_str = dt.datetime.now(timezone.utc).isoformat()
             if wp:
                 wp.episode_id = episode_id
                 wp.updated_at = now_str
@@ -589,16 +606,15 @@ class AnimeDatabase:
 
     # ----- Favorites -----
     async def save_favorite(self, session_id: str, anime_id: str) -> None:
-        import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Favorite).where(Favorite.anime_id == anime_id, Favorite.session_id == session_id))  # type: ignore
             fav = result.one_or_none()
             if not fav:
-                now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                now_str = dt.datetime.now(timezone.utc).isoformat()
                 fav = Favorite(session_id=session_id, anime_id=anime_id, added_at=now_str)
                 session.add(fav)
-                await session.commit()
+            await session.commit()
 
     async def remove_favorite(self, session_id: str, anime_id: str) -> None:
         await self._ensure_init()
@@ -629,12 +645,11 @@ class AnimeDatabase:
         episodes_total: Optional[int] = None,
         notes: Optional[str] = None,
     ) -> None:
-        import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(Watchlist).where(Watchlist.anime_id == anime_id, Watchlist.session_id == session_id))  # type: ignore
             item = result.one_or_none()
-            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            now_str = dt.datetime.now(timezone.utc).isoformat()
             if item:
                 item.status = status
                 item.last_update = now_str
@@ -653,7 +668,7 @@ class AnimeDatabase:
                     session_id=session_id,
                     anime_id=anime_id,
                     status=status,
-                    episodes_watched=episodes_watched or 0,
+                    episodes_watched=episodes_watched if episodes_watched is not None else 0,
                     episodes_total=episodes_total,
                     notes=notes,
                     added_at=now_str,
@@ -902,14 +917,18 @@ class AnimeDatabase:
 class MangaDatabase:
     def __init__(self):
         self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     async def _ensure_init(self) -> None:
         """Lazy init: create tables on first async call."""
         if self._initialized:
             return
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
-        self._initialized = True
+        async with self._init_lock:
+            if self._initialized:
+                return
+            async with engine.begin() as conn:
+                await conn.run_sync(SQLModel.metadata.create_all)
+            self._initialized = True
 
     async def count(self) -> int:
         await self._ensure_init()
@@ -1119,12 +1138,11 @@ class MangaDatabase:
 
     # ----- Watch Progress (Reading) -----
     async def save_progress(self, session_id: str, manga_id: str, chapter_id: str) -> None:
-        import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(MangaProgress).where(MangaProgress.manga_id == manga_id, MangaProgress.session_id == session_id))  # type: ignore
             wp = result.one_or_none()
-            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            now_str = dt.datetime.now(timezone.utc).isoformat()
             if wp:
                 wp.chapter_id = chapter_id
                 wp.updated_at = now_str
@@ -1173,16 +1191,15 @@ class MangaDatabase:
 
     # ----- Favorites -----
     async def save_favorite(self, session_id: str, manga_id: str) -> None:
-        import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(MangaFavorite).where(MangaFavorite.manga_id == manga_id, MangaFavorite.session_id == session_id))  # type: ignore
             fav = result.one_or_none()
             if not fav:
-                now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                now_str = dt.datetime.now(timezone.utc).isoformat()
                 fav = MangaFavorite(session_id=session_id, manga_id=manga_id, added_at=now_str)
                 session.add(fav)
-                await session.commit()
+            await session.commit()
 
     async def remove_favorite(self, session_id: str, manga_id: str) -> None:
         await self._ensure_init()
@@ -1212,12 +1229,11 @@ class MangaDatabase:
         chapters_total: Optional[int] = None,
         notes: Optional[str] = None,
     ) -> None:
-        import datetime
         await self._ensure_init()
         async with AsyncSession(engine) as session:
             result = await session.exec(select(MangaWatchlist).where(MangaWatchlist.manga_id == manga_id, MangaWatchlist.session_id == session_id))  # type: ignore
             item = result.one_or_none()
-            now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            now_str = dt.datetime.now(timezone.utc).isoformat()
             if item:
                 item.status = status
                 item.last_update = now_str
@@ -1236,7 +1252,7 @@ class MangaDatabase:
                     session_id=session_id,
                     manga_id=manga_id,
                     status=status,
-                    chapters_read=chapters_read or 0,
+                    chapters_read=chapters_read if chapters_read is not None else 0,
                     chapters_total=chapters_total,
                     notes=notes,
                     added_at=now_str,

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { getCastDevices, castPlay, castPause, castStop, getCastStatus } from '../utils/api';
 
 /**
@@ -40,6 +40,13 @@ export function useDLNA() {
 
   // ── Status polling ─────────────────────────────────────────────────────────
 
+  const _stopStatusPoll = useCallback(() => {
+    if (statusPollRef.current) {
+      clearInterval(statusPollRef.current);
+      statusPollRef.current = null;
+    }
+  }, []);
+
   const _startStatusPoll = useCallback((device) => {
     _stopStatusPoll();
     statusPollRef.current = setInterval(async () => {
@@ -55,14 +62,13 @@ export function useDLNA() {
         // silently ignore poll errors
       }
     }, 8000);
-  }, []);
+  }, [_stopStatusPoll]);
 
-  const _stopStatusPoll = useCallback(() => {
-    if (statusPollRef.current) {
-      clearInterval(statusPollRef.current);
-      statusPollRef.current = null;
-    }
-  }, []);
+  useEffect(() => {
+    return () => {
+      _stopStatusPoll();
+    };
+  }, [_stopStatusPoll]);
 
   // ── Playback control ───────────────────────────────────────────────────────
 

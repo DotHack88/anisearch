@@ -687,7 +687,7 @@ async def manga_sync_status():
     """Stato della sincronizzazione archivio manga in corso."""
     return _manga_sync_status
 
-@app.post("/manga/sync-archive")
+@app.post("/manga/sync-archive", dependencies=[Depends(verify_admin_token)])
 async def manga_sync_archive(background_tasks: BackgroundTasks):
     """Avvia la sincronizzazione completa dell'archivio MangaWorld in background."""
     if _manga_sync_status["running"]:

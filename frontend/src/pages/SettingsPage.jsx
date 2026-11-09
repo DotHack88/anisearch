@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import api from '../utils/api'
+import api, { getVapidPublicKey, subscribePush } from '../utils/api'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -133,7 +133,6 @@ export default function SettingsPage() {
         }
         
         // Fetch public key
-        const { getVapidPublicKey, subscribePush } = await import('../utils/api')
         const vapidPublicKey = await getVapidPublicKey()
         const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey)
         

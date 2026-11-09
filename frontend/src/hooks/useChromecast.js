@@ -6,6 +6,10 @@ export function useChromecast() {
   const [castState, setCastState] = useState('NO_DEVICES_AVAILABLE'); // CONNECTED, NOT_CONNECTED, CONNECTING
 
   useEffect(() => {
+    let context = null;
+    let handleCastState = null;
+    let handleSessionState = null;
+
     const initializeCastApi = () => {
       const cast = window.cast;
       const chrome = window.chrome;
@@ -17,45 +21,67 @@ export function useChromecast() {
           receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
           autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
         });
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[Chromecast] Inizializzazione opzioni fallita:', e);
+      }
 
       setIsCastAvailable(true);
+      context = cast.framework.CastContext.getInstance();
       
-      const context = cast.framework.CastContext.getInstance();
-      
-      // Ascolta i cambiamenti di stato
+      handleCastState = (event) => {
+        setCastState(event.castState);
+      };
+
+      handleSessionState = (event) => {
+        if (event.sessionState === cast.framework.SessionState.SESSION_STARTED || 
+            event.sessionState === cast.framework.SessionState.SESSION_RESUMED) {
+          setCastSession(context.getCurrentSession());
+        } else if (event.sessionState === cast.framework.SessionState.SESSION_ENDED) {
+          setCastSession(null);
+        }
+      };
+
       context.addEventListener(
         cast.framework.CastContextEventType.CAST_STATE_CHANGED,
-        (event) => {
-          setCastState(event.castState);
-        }
+        handleCastState
       );
 
-      // Ascolta le sessioni (se l'utente si è connesso a un chromecast)
       context.addEventListener(
         cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
-        (event) => {
-          if (event.sessionState === cast.framework.SessionState.SESSION_STARTED || 
-              event.sessionState === cast.framework.SessionState.SESSION_RESUMED) {
-            setCastSession(context.getCurrentSession());
-          } else if (event.sessionState === cast.framework.SessionState.SESSION_ENDED) {
-            setCastSession(null);
-          }
-        }
+        handleSessionState
       );
       
-      // Inizializza gli state attuali
       setCastState(context.getCastState());
       setCastSession(context.getCurrentSession());
     };
     
+    let handleCastAvailable = null;
     if (window.isCastApiAvailable) {
       initializeCastApi();
     } else {
-      const handleCastAvailable = () => initializeCastApi();
+      handleCastAvailable = () => initializeCastApi();
       document.addEventListener('castApiAvailable', handleCastAvailable);
-      return () => document.removeEventListener('castApiAvailable', handleCastAvailable);
     }
+
+    return () => {
+      if (handleCastAvailable) {
+        document.removeEventListener('castApiAvailable', handleCastAvailable);
+      }
+      if (context && window.cast?.framework) {
+        if (handleCastState) {
+          context.removeEventListener(
+            window.cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+            handleCastState
+          );
+        }
+        if (handleSessionState) {
+          context.removeEventListener(
+            window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+            handleSessionState
+          );
+        }
+      }
+    };
   }, []);
 
   const requestSession = useCallback(async () => {

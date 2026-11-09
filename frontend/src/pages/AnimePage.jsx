@@ -36,10 +36,12 @@ export default function AnimePage() {
   }, [wsOpen])
 
   useEffect(() => {
+    let active = true
     window.scrollTo(0, 0)
     setLoading(true); setError(null); setRelated([])
     getAnimeDetail(id)
       .then(data => {
+        if (!active) return
         setAnime(prev => ({ ...prev, ...data }))
         
         if (data.title) {
@@ -56,22 +58,32 @@ export default function AnimePage() {
           
           searchAnime(searchWords, 15)
             .then(res => {
-              const filtered = res.filter(a => a.id !== id);
+              if (!active) return
+              const filtered = res.filter(a => String(a.id) !== String(id));
               setRelated(filtered);
             })
             .catch(() => {});
         }
       })
-      .catch(() => setError('Impossibile caricare i dettagli.'))
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (active) setError('Impossibile caricare i dettagli.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
     getWatchProgress(id)
       .then(data => {
+        if (!active) return
         if (data && data.episode_id) {
           setProgress(data)
         }
       })
       .catch(err => console.error('Error fetching progress:', err))
+
+    return () => {
+      active = false
+    }
   }, [id])
 
   if (error && !anime) return (
@@ -145,14 +157,14 @@ export default function AnimePage() {
             {/* Azioni */}
             <div className="flex items-center gap-3 mt-5 justify-center md:justify-start flex-wrap">
               {lastWatchedEpisode ? (
-                <Link to={`/watch/${id}/${lastWatchedEpisode.id}`} state={{ episodes: anime.episodes, animeTitle: anime.title, animeImage: img }}
+                <Link to={`/watch/${id}/${lastWatchedEpisode.id}`} state={{ episodes: anime?.episodes, animeTitle: anime?.title, animeImage: img }}
                   className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                   Riprendi da Ep. {lastWatchedEpisode.number}
                 </Link>
               ) : (
                 anime?.episodes?.[0] && (
-                  <Link to={`/watch/${id}/${anime.episodes[0].id}`} state={{ episodes: anime.episodes, animeTitle: anime.title, animeImage: img }}
+                  <Link to={`/watch/${id}/${anime.episodes[0].id}`} state={{ episodes: anime?.episodes, animeTitle: anime?.title, animeImage: img }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-h text-white rounded-xl font-body font-medium text-sm transition-colors shadow-lg shadow-accent/20">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                     Guarda Ep. 1

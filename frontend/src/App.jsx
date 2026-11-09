@@ -4,6 +4,8 @@ import Navbar from './components/Navbar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import AnimeLoader from './components/AnimeLoader.jsx'
 import ScrollToTop from './components/ScrollToTop.jsx'
+import ChristmasSnow from './components/ChristmasSnow.jsx'
+import { useChristmasTheme } from './hooks/useChristmasTheme.js'
 import Home from './pages/Home.jsx'
 import AnimePage from './pages/AnimePage.jsx'
 import CatalogPage from './pages/CatalogPage.jsx'
@@ -28,6 +30,7 @@ const hasSeenLoader = sessionStorage.getItem('anisearch_loader_seen')
 
 export default function App() {
   const [loading, setLoading] = useState(!hasSeenLoader)
+  const { isChristmas, toggleChristmas } = useChristmasTheme()
 
   const handleLoaderComplete = () => {
     sessionStorage.setItem('anisearch_loader_seen', '1')
@@ -35,28 +38,29 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text">
+    <div className={`min-h-screen bg-bg text-text ${isChristmas ? 'christmas-theme' : ''}`}>
       {loading && <AnimeLoader onComplete={handleLoaderComplete} />}
+      <ChristmasSnow enabled={isChristmas} />
       <ScrollToTop />
-      <Navbar />
+      <Navbar isChristmas={isChristmas} onToggleChristmas={toggleChristmas} />
       <main>
         <ErrorBoundary>
           <Routes>
-            <Route path="/"              element={<Home />} />
-            <Route path="/search"        element={<SearchPage />} />
-            <Route path="/catalog"       element={<CatalogPage />} />
-            <Route path="/anime/:id"     element={<AnimePage />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/catalog" element={<CatalogPage />} />
+            <Route path="/anime/:id" element={<AnimePage />} />
             <Route path="/watch/:animeId/:episodeId" element={<WatchPage />} />
-            <Route path="/favorites"     element={<FavoritesPage />} />
-            <Route path="/watchlist"     element={<WatchlistPage />} />
-            <Route path="/downloads"     element={<DownloadsPage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
+            <Route path="/watchlist" element={<WatchlistPage />} />
+            <Route path="/downloads" element={<DownloadsPage />} />
             <Route path="/nuovi-episodi" element={<NewEpisodesPage />} />
-            <Route path="/login"         element={<LoginPage />} />
-            <Route path="/register"      element={<RegisterPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password"  element={<ResetPasswordPage />} />
-            <Route path="/impostazioni"  element={<SettingsPage />} />
-            <Route path="/profilo"       element={<ProfilePage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/impostazioni" element={<SettingsPage />} />
+            <Route path="/profilo" element={<ProfilePage />} />
             
             <Route path="/manga/catalog" element={<MangaList />} />
             <Route path="/manga/:id" element={<MangaDetail />} />
