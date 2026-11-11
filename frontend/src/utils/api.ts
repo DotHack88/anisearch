@@ -3,10 +3,10 @@ import { getSessionId } from './session'
 
 // API base URL:
 // - Sviluppo locale: http://localhost:8000 (uvicorn diretto, senza prefisso /api)
-// - Produzione (Render + Vercel): https://anisearch-8jph.onrender.com/api
-//   Nginx su Render proxia /api/* → uvicorn. Senza il prefisso /api, Nginx serve la SPA React.
+// - Produzione su Vercel: '/api' (relativo) → il proxy vercel.json redirige a Render
+//   In questo modo evitiamo problemi CORS e il frontend non chiama Render direttamente.
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (
-  import.meta.env.DEV ? 'http://127.0.0.1:8000' : 'https://anisearch-8jph.onrender.com/api'
+  import.meta.env.DEV ? 'http://127.0.0.1:8000' : '/api'
 )
 
 

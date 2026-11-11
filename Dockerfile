@@ -105,13 +105,12 @@ EOF
 # Expose only port 80 (nginx serves both frontend and proxies API)
 EXPOSE 80
 
-# Environment variables (defaults — can be overridden at runtime via Render Environment tab)
+# Environment variables — override via Render Environment tab (secrets must NOT be hardcoded here)
 ENV REDIS_URL=redis://redis:6379
 ENV ALLOWED_ORIGINS=""
 ENV UVICORN_WORKERS="1"
-ENV JWT_SECRET="3f41f0a4517bec3e138e39b68d91e8351cadb2607667a3246efa0bcc1dac9470"
 ENV JWT_AUDIENCE="anisearch-app"
-ENV DATABASE_URL="postgresql://neondb_owner:npg_efrDzXyh7lk8@ep-flat-dawn-abwjcau1-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+# DATABASE_URL and JWT_SECRET must be set in Render's Environment tab, not here
 
 HEALTHCHECK \
   --interval=30s \
