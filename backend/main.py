@@ -1,6 +1,7 @@
 """
 AniSearch — Backend API (FastAPI)
 """
+from __future__ import annotations
 
 import os
 import sys
@@ -298,18 +299,38 @@ def root():
     }
 
 
+_cached_status_data: dict[str, Any] | None = None
+_cached_status_time: float = 0.0
+
 @app.api_route("/status", methods=["GET", "HEAD"])
-async def status():
-    anime_count = await db.count()
-    episode_count = await db.count_episodes()
-    from backend.database import engine
-    return {
-        "status": "online",
-        "cached_anime": anime_count,
-        "total_episodes": episode_count,
-        "cache_ready": anime_count > 0,
-        "database_type": engine.url.drivername,
-    }
+async def status() -> dict[str, Any]:
+    global _cached_status_data, _cached_status_time
+    import time
+    now = time.time()
+    # Cache per 60 secondi: evita due pesanti SELECT COUNT(*) su Neon a ogni chiamata
+    if _cached_status_data is not None and (now - _cached_status_time < 60):
+        return _cached_status_data
+
+    try:
+        anime_count = await db.count()
+        episode_count = await db.count_episodes()
+        from backend.database import engine
+        res = {
+            "status": "online",
+            "cached_anime": anime_count,
+            "total_episodes": episode_count,
+            "cache_ready": anime_count > 0,
+            "database_type": str(engine.url.drivername),
+        }
+        _cached_status_data = res
+        _cached_status_time = now
+        return res
+    except Exception as e:
+        logger.error(f"Errore endpoint /status: {e}")
+        # Se abbiamo dati in cache anche scaduti, restituiamoli per non andare in errore
+        if _cached_status_data is not None:
+            return _cached_status_data
+        raise
 
 
 if _has_slowapi and limiter:

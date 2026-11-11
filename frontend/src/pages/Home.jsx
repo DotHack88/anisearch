@@ -56,28 +56,58 @@ function AnimatedCounter({ value }) {
 export default function Home() {
   const { favorites, removeFavorite } = useFavorites()
   const { favorites: mangaFavorites, removeFavorite: removeMangaFavorite } = useMangaFavorites()
-  const [status, setStatus] = useState(null)
+  const [status, setStatus] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('anisearch_backend_status')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
   const [recentWatch, setRecentWatch] = useState([])
   const [recentMangaRead, setRecentMangaRead] = useState([])
 
   useEffect(() => {
-    const fetchStatus = () => {
-      getStatus().then(setStatus).catch(() => setStatus({ status: 'offline' }))
+    let isMounted = true
+    let retryCount = 0
+
+    const fetchStatus = async () => {
+      try {
+        const data = await getStatus()
+        if (!isMounted) return
+        retryCount = 0
+        setStatus(data)
+        try {
+          sessionStorage.setItem('anisearch_backend_status', JSON.stringify(data))
+        } catch {}
+      } catch (err) {
+        if (!isMounted) return
+        retryCount++
+        // Prima di dichiarare offline, ritenta 2 volte (gestisce il cold-start del DB e i brevi ritardi iniziali)
+        if (retryCount < 3) {
+          setTimeout(fetchStatus, 1500)
+        } else {
+          setStatus({ status: 'offline' })
+        }
+      }
     }
     
     fetchStatus()
-    // Poll the status endpoint every 10 seconds to keep the count updated dynamically
-    const statusInterval = setInterval(fetchStatus, 10000)
+    // Poll del conteggio ogni 30 secondi (invece di 10) per non intasare la rete
+    const statusInterval = setInterval(fetchStatus, 30000)
 
     getRecentWatchProgress()
-      .then(setRecentWatch)
+      .then(res => { if (isMounted) setRecentWatch(res) })
       .catch(err => console.error('Error fetching watch progress:', err))
 
     getRecentMangaWatchProgress()
-      .then(setRecentMangaRead)
+      .then(res => { if (isMounted) setRecentMangaRead(res) })
       .catch(() => {})
 
-    return () => clearInterval(statusInterval)
+    return () => {
+      isMounted = false
+      clearInterval(statusInterval)
+    }
   }, [])
 
   const handleClearProgress = (animeId, episodeId) => {

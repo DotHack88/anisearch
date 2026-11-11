@@ -88,7 +88,7 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 [program:uvicorn]
-command=uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers %(ENV_UVICORN_WORKERS)s
+command=uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 directory=/app
 autostart=true
 autorestart=true
