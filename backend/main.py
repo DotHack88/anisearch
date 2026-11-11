@@ -161,27 +161,34 @@ async def _run_manga_sync():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Eseguiamo lo scraping massivo solo se il DB è vuoto
-    if await db.count() == 0:
-        logger.info("Database vuoto — Avvio scraping iniziale completo in background...")
-        async def run_initial_scrape():
-            try:
-                await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
-                logger.info(f"Database pronto: {await db.count()} anime salvati.")
-            except Exception as e:
-                logger.error(f"Errore popolamento db in background: {e}")
-        
-        asyncio.create_task(run_initial_scrape())
-    else:
-        logger.info(f"Avvio rapido — Database già popolato con {await db.count()} anime.")
+    # Eseguiamo il controllo iniziale del DB protetto da try/except per non bloccare l'avvio di Uvicorn su Render/Docker
+    try:
+        anime_count = await db.count()
+        if anime_count == 0:
+            logger.info("Database vuoto — Avvio scraping iniziale completo in background...")
+            async def run_initial_scrape():
+                try:
+                    await asyncio.to_thread(scraper.build_full_index, db, loop=asyncio.get_running_loop())
+                    logger.info(f"Database pronto: {await db.count()} anime salvati.")
+                except Exception as e:
+                    logger.error(f"Errore popolamento db in background: {e}")
+            
+            asyncio.create_task(run_initial_scrape())
+        else:
+            logger.info(f"Avvio rapido — Database già popolato con {anime_count} anime.")
+    except Exception as e:
+        logger.error(f"Avviso connessione database all'avvio: {e}")
 
     # Auto-sync archivio manga se il DB manga è vuoto
-    manga_count = await manga_db.count()
-    if manga_count == 0:
-        logger.info("Database manga vuoto — Avvio importazione archivio MangaWorld in background...")
-        asyncio.create_task(_run_manga_sync())
-    else:
-        logger.info(f"Avvio rapido manga — Database già popolato con {manga_count} manga.")
+    try:
+        manga_count = await manga_db.count()
+        if manga_count == 0:
+            logger.info("Database manga vuoto — Avvio importazione archivio MangaWorld in background...")
+            asyncio.create_task(_run_manga_sync())
+        else:
+            logger.info(f"Avvio rapido manga — Database già popolato con {manga_count} manga.")
+    except Exception as e:
+        logger.error(f"Avviso connessione database manga all'avvio: {e}")
         
     if not os.getenv("ADMIN_TOKEN"):
         warnings.warn(
