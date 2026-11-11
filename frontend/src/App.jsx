@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import AnimeLoader from './components/AnimeLoader.jsx'
@@ -31,6 +31,7 @@ const hasSeenLoader = sessionStorage.getItem('anisearch_loader_seen')
 export default function App() {
   const [loading, setLoading] = useState(!hasSeenLoader)
   const { isChristmas, toggleChristmas } = useChristmasTheme()
+  const location = useLocation()
 
   const handleLoaderComplete = () => {
     sessionStorage.setItem('anisearch_loader_seen', '1')
@@ -44,7 +45,7 @@ export default function App() {
       <ScrollToTop />
       <Navbar isChristmas={isChristmas} onToggleChristmas={toggleChristmas} />
       <main>
-        <ErrorBoundary>
+        <ErrorBoundary key={location.pathname}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/search" element={<SearchPage />} />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useDownloads } from '../hooks/useDownloads.js'
 
@@ -35,11 +35,11 @@ function StorageMeter({ usedBytes }) {
   const [usageFromBrowser, setUsageFromBrowser] = useState(null)
 
   useEffect(() => {
-    if (navigator.storage && navigator.storage.estimate) {
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
       navigator.storage.estimate().then(({ usage, quota }) => {
         setQuota(quota)
         setUsageFromBrowser(usage)
-      })
+      }).catch(() => {})
     }
   }, [])
 
