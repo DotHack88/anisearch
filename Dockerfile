@@ -76,9 +76,11 @@ server {
 EOF
 
 # Supervisor config: run both nginx and uvicorn
-RUN cat > /etc/supervisor/conf.d/anisearch.conf <<'EOF'
+RUN cat > /etc/supervisor/supervisord.conf <<'EOF'
 [supervisord]
 nodaemon=true
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
 
 [program:nginx]
 command=nginx -g "daemon off;"
@@ -113,6 +115,6 @@ HEALTHCHECK \
   --timeout=5s \
   --start-period=60s \
   --retries=3 \
-  CMD curl -f http://localhost/api/status || exit 1
+  CMD curl -f http://localhost/ || exit 1
 
 CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
