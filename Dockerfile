@@ -52,11 +52,13 @@ server {
     # Backend API — proxy to uvicorn
     # Nginx handles CORS preflight (OPTIONS) so FastAPI CORS middleware can respond correctly
     location /api/ {
+        # CORS headers (always present, even on errors/502)
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
+        add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Session-Id, X-Admin-Token' always;
+
         # Handle CORS preflight requests at Nginx level
         if ($request_method = 'OPTIONS') {
-            add_header 'Access-Control-Allow-Origin' '*' always;
-            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
-            add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Session-Id, X-Admin-Token' always;
             add_header 'Access-Control-Max-Age' 1728000;
             add_header 'Content-Type' 'text/plain; charset=utf-8';
             add_header 'Content-Length' 0;
@@ -88,7 +90,7 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 [program:uvicorn]
-command=uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1
+command=python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 directory=/app
 autostart=true
 autorestart=true
