@@ -453,7 +453,7 @@ class AnimeWorldScraper:
         items = soup.select(".item")
         if not items:
             logger.warning("Nessun anime trovato nella pagina /updated.")
-            return
+            return []
 
         anime_list = []
         for div in items:
