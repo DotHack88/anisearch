@@ -114,7 +114,8 @@ class AnimeWorldScraper:
     def _fetch_tooltip(self, tooltip_url: str) -> dict:
         """Fetch metadata from tooltip API: genres, status, year, rating."""
         meta = {"genres": [], "status": "", "year": "", "rating": ""}
-        text = self._fetch_text(f"{BASE_URL}{tooltip_url}")
+        clean_path = tooltip_url.lstrip("/")
+        text = self._fetch_text(f"{BASE_URL}/{clean_path}")
         if not text:
             return meta
 
