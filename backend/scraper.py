@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Domini disponibili — usati in ordine di priorità
 DOMAINS = [
-    "https://animeworld.or.at",   # nuovo, Laravel + AJAX
-    "https://www.animeworld.ac",   # vecchio, ancora funzionante
+    "https://www.animeworld.ac",   # primario, struttura stabile
+    "https://animeworld.or.at",   # fallback Laravel + AJAX
 ]
 
 AZ_LETTERS = ["0-9"] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -209,8 +209,13 @@ class AnimeWorldScraper:
         return results
 
     def search(self, keyword: str, limit: int = 20) -> list[dict]:
-        """Search for an anime using the AJAX search endpoint."""
-        url = f"{self.BASE_URL}/ajax/anime/search?keyword={requests.utils.quote(keyword)}"
+        """Search for an anime using the AJAX search endpoint.
+
+        Note: The .ac domain doesn't support /ajax/anime/search.
+        We always use .or.at for searching since it has the AJAX endpoint.
+        """
+        # Always use .or.at for AJAX search since .ac doesn't have this endpoint
+        url = f"https://animeworld.or.at/ajax/anime/search?keyword={requests.utils.quote(keyword)}"
         data = self._fetch_json(url)
         if not data:
             return []
