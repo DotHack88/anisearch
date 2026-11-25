@@ -496,29 +496,57 @@ class AnimeWorldScraper:
             if val:
                 detail["rating"] = val
 
-        # Episodes — just collect links from the main detail page (no per-episode scraping here
-        # to avoid rate-limiting; video URLs are resolved on-demand via get_episode_video_url).
+        # Episodes — new .or.at site uses data-slug attributes on anchor tags
         episodes = []
         seen_ep = set()
-        ep_pattern = re.compile(r"/(?:watch/[^/]+)?/(?:ep-\d+|episode/\d+)")
 
+        # Get the anime slug from the page URL (e.g., /anime/gintama-shirogane...)
+        page_url_match = re.search(r'/anime/([^/]+)', anime_url)
+        anime_slug = page_url_match.group(1) if page_url_match else ""
+        base_url = self.BASE_URL.rstrip("/")
+
+        # Strategy 1: Parse from data-slug attributes (new .or.at format)
         for a in soup.find_all("a", href=True):
-            href = a.get("href", "")
-            if not ep_pattern.search(href):
+            ep_num = a.get("data-slug", "")
+            if not ep_num:
                 continue
-            num_match = re.search(r"(\d+(?:\.\d+)?)", href)
-            ep_num = num_match.group(1) if num_match else str(len(episodes) + 1)
-            ep_id = href.rstrip("/").split("/")[-1].split("?")[0]
-            if ep_id and ep_id not in seen_ep:
-                seen_ep.add(ep_id)
-                ep_title = a.get_text(strip=True)
-                episodes.append({
-                    "number": ep_num,
-                    "url": href if href.startswith("http") else f"{self.BASE_URL}{href}",
-                    "id": ep_id,
-                    "title": ep_title,
-                    "video_url": self._ep_video_cache.get(ep_id, ""),
-                })
+            ep_num_clean = str(ep_num).strip()
+            if ep_num_clean in seen_ep:
+                continue
+            seen_ep.add(ep_num_clean)
+
+            ep_id = f"ep-{ep_num_clean}"
+            # Build episode URL: /watch/{anime_slug}/ep-{number}
+            ep_url = f"{base_url}/watch/{anime_slug}/ep-{ep_num_clean}" if anime_slug else ""
+
+            episodes.append({
+                "number": ep_num_clean,
+                "url": ep_url,
+                "id": ep_id,
+                "title": a.get_text(strip=True),
+                "video_url": self._ep_video_cache.get(ep_id, ""),
+            })
+
+        # If no episodes found, try legacy link parsing as fallback
+        if not episodes:
+            ep_pattern = re.compile(r"/(?:watch/[^/]+)?/(?:ep-\d+|episode/\d+)")
+            for a in soup.find_all("a", href=True):
+                href = a.get("href", "")
+                if not ep_pattern.search(href):
+                    continue
+                num_match = re.search(r"(\d+(?:\.\d+)?)", href)
+                ep_num = num_match.group(1) if num_match else str(len(episodes) + 1)
+                ep_id = href.rstrip("/").split("/")[-1].split("?")[0]
+                if ep_id and ep_id not in seen_ep:
+                    seen_ep.add(ep_id)
+                    ep_title = a.get_text(strip=True)
+                    episodes.append({
+                        "number": ep_num,
+                        "url": href if href.startswith("http") else f"{self.BASE_URL}{href}",
+                        "id": ep_id,
+                        "title": ep_title,
+                        "video_url": self._ep_video_cache.get(ep_id, ""),
+                    })
 
         detail["episodes"] = episodes
         return detail
