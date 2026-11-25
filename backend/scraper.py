@@ -1,7 +1,7 @@
 """
 AnimeWorld Scraper — BeautifulSoup + requests
-Supporta i domini animeworld.ac (vecchio, contenuto SSR parziale) e
-animeworld.or.at (nuovo, Laravel con API AJAX /ajax/anime/search).
+Supporta i domini animeworld.or.at (primario, Laravel con API AJAX) e
+animeworld.ac (fallback, struttura SSR parziale).
 Estrae metadati (generi, stato, anno) dalla pagina dettaglio anime.
 """
 
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Domini disponibili — usati in ordine di priorità
 DOMAINS = [
-    "https://www.animeworld.ac",   # primario, struttura stabile
-    "https://animeworld.or.at",   # fallback Laravel + AJAX
+    "https://animeworld.or.at",   # primario, Laravel + AJAX
+    "https://www.animeworld.ac",  # fallback SSR
 ]
 
 AZ_LETTERS = ["0-9"] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -453,7 +453,7 @@ class AnimeWorldScraper:
         soup = self._fetch(anime_url)
         detail = self._parse_detail(soup, anime_url)
 
-        # If too few episodes, try fallback domain (.or.at)
+        # If too few episodes, try fallback domain (.ac)
         if len(detail.get("episodes", [])) < 5 and self.BASE_URL != DOMAINS[1]:
             logger.info(f"Few episodes ({len(detail.get('episodes', []))}) on {self.BASE_URL}, trying fallback...")
             fallback_url = anime_url.replace(DOMAINS[0], DOMAINS[1])
