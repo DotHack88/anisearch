@@ -449,7 +449,25 @@ class AnimeWorldScraper:
         if not anime_url.startswith("http"):
             anime_url = f"{self.BASE_URL}{anime_url}"
 
+        # Try primary domain first
         soup = self._fetch(anime_url)
+        detail = self._parse_detail(soup, anime_url)
+
+        # If too few episodes, try fallback domain (.or.at)
+        if len(detail.get("episodes", [])) < 5 and self.BASE_URL != DOMAINS[1]:
+            logger.info(f"Few episodes ({len(detail.get('episodes', []))}) on {self.BASE_URL}, trying fallback...")
+            fallback_url = anime_url.replace(DOMAINS[0], DOMAINS[1])
+            fallback_soup = self._fetch(fallback_url)
+            if fallback_soup:
+                fallback_detail = self._parse_detail(fallback_soup, fallback_url)
+                if len(fallback_detail.get("episodes", [])) > len(detail.get("episodes", [])):
+                    logger.info(f"Fallback to {DOMAINS[1]} found more episodes")
+                    detail = fallback_detail
+
+        return detail
+
+    def _parse_detail(self, soup, anime_url: str) -> dict:
+        """Parse anime detail from BeautifulSoup object."""
         if not soup:
             return {"episodes": [], "description": "", "genres": []}
 
