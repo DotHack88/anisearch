@@ -205,7 +205,7 @@ class AnimeDatabase:
         self._init_lock = asyncio.Lock()
 
     async def _ensure_init(self) -> None:
-        """Lazy init: create tables on first async call."""
+        """Lazy init: create tables on first async call, plus run migrations."""
         if self._initialized:
             return
         async with self._init_lock:
@@ -213,8 +213,26 @@ class AnimeDatabase:
                 return
             async with engine.begin() as conn:
                 await conn.run_sync(SQLModel.metadata.create_all)
+                # Migration: add video_url column to episode table if missing
+                await self._migrate_add_video_url(conn)
             self._initialized = True
             logger.info("Database tables created / verified.")
+
+    async def _migrate_add_video_url(self, conn) -> None:
+        """Add video_url column to episode table if it doesn't exist."""
+        from sqlalchemy import text
+        try:
+            result = await conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'episode' AND column_name = 'video_url'"
+            ))
+            if result.fetchone() is None:
+                await conn.execute(text(
+                    "ALTER TABLE episode ADD COLUMN video_url VARCHAR"
+                ))
+                logger.info("Added video_url column to episode table")
+        except Exception as e:
+            logger.warning(f"Migration check skipped: {e}")
 
     # ----- Basic operations -----
     async def count(self) -> int:
