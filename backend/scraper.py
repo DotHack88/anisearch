@@ -82,10 +82,18 @@ class AnimeWorldScraper:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _fetch(self, url: str, retries: int = 3) -> Optional[BeautifulSoup]:
+    def _fetch(self, url: str, retries: int = 3, allow_redirects: bool = True) -> Optional[BeautifulSoup]:
         for attempt in range(1, retries + 1):
             try:
-                resp = self.session.get(url, timeout=self.timeout)
+                resp = self.session.get(url, timeout=self.timeout, allow_redirects=allow_redirects)
+                # If we got a redirect, follow it once to get the actual content
+                if resp.status_code in (301, 302) and resp.headers.get('Location'):
+                    redirect_url = resp.headers['Location']
+                    if not redirect_url.startswith('http'):
+                        redirect_url = f"{self.BASE_URL.rstrip('/')}/{redirect_url.lstrip('/')}"
+                    resp = self.session.get(redirect_url, timeout=self.timeout, allow_redirects=False)
+                    if resp.status_code == 200:
+                        return BeautifulSoup(resp.text, "html.parser")
                 resp.raise_for_status()
                 return BeautifulSoup(resp.text, "html.parser")
             except requests.exceptions.HTTPError as e:
