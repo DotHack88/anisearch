@@ -575,8 +575,14 @@ async def episode_video(request: Request, episode_id: str):
 
         # Otherwise fetch fresh from the source (pass episode_url from DB so scraper can find the page)
         episode_url = ep["url"] if ep and ep.get("url") else None
+        # Extract anime slug from episode URL (e.g., /watch/{slug}-ID/ep-NUM)
+        anime_slug = None
+        if episode_url:
+            slug_match = re.search(r'/watch/([^/]+)/ep', episode_url)
+            if slug_match:
+                anime_slug = slug_match.group(1)
         result = await asyncio.wait_for(
-            asyncio.to_thread(scraper.get_episode_video_url, episode_id, episode_url),
+            asyncio.to_thread(scraper.get_episode_video_url, episode_id, episode_url, anime_slug),
             timeout=20.0
         )
         if result.get("video_url"):
@@ -601,7 +607,7 @@ async def download_episode(episode_id: str):
     from starlette.responses import StreamingResponse
     import requests as dl_requests
 
-    result = await asyncio.to_thread(scraper.get_episode_video_url, episode_id)
+    result = await asyncio.to_thread(scraper.get_episode_video_url, episode_id, episode_url, anime_slug)
     video_url = result.get("video_url")
     if not video_url:
         raise HTTPException(404, "Video non trovato")

@@ -533,29 +533,87 @@ class AnimeWorldScraper:
 
         # If no episodes found, try legacy link parsing as fallback
         if not episodes:
-            ep_pattern = re.compile(r"/(?:watch/[^/]+)?/(?:ep-\d+|episode/\d+)")
-            for a in soup.find_all("a", href=True):
-                href = a.get("href", "")
-                if not ep_pattern.search(href):
-                    continue
-                num_match = re.search(r"(\d+(?:\.\d+)?)", href)
-                ep_num = num_match.group(1) if num_match else str(len(episodes) + 1)
-                ep_id = href.rstrip("/").split("/")[-1].split("?")[0]
-                if ep_id and ep_id not in seen_ep:
-                    seen_ep.add(ep_id)
-                    ep_title = a.get_text(strip=True)
-                    # Cache key includes anime slug to avoid cross-anime collisions
-                    cache_key = f"{anime_slug or 'unknown'}-{ep_id}" if anime_slug else ep_id
-                    episodes.append({
-                        "number": ep_num,
-                        "url": href if href.startswith("http") else f"{self.BASE_URL}{href}",
-                        "id": ep_id,
-                        "title": ep_title,
-                        "video_url": self._ep_video_cache.get(cache_key, ""),
-                    })
+            # Strategy 1: Look for <li><a href="/play/slug.SHORTID" text="EP_NUM"> in .widget-body servers
+            ep_from_li = self._parse_ac_episode_list(soup, anime_slug)
+            if ep_from_li:
+                episodes = ep_from_li
+
+            # Strategy 2: Fallback to old regex pattern (for very old pages)
+            if not episodes:
+                ep_pattern = re.compile(r"/(?:watch/[^/]+)?/(?:ep-\d+|episode/\d+)")
+                for a in soup.find_all("a", href=True):
+                    href = a.get("href", "")
+                    if not ep_pattern.search(href):
+                        continue
+                    num_match = re.search(r"(\d+(?:\.\d+)?)", href)
+                    ep_num = num_match.group(1) if num_match else str(len(episodes) + 1)
+                    ep_id = href.rstrip("/").split("/")[-1].split("?")[0]
+                    if ep_id and ep_id not in seen_ep:
+                        seen_ep.add(ep_id)
+                        ep_title = a.get_text(strip=True)
+                        # Cache key includes anime slug to avoid cross-anime collisions
+                        cache_key = f"{anime_slug or 'unknown'}-{ep_id}" if anime_slug else ep_id
+                        episodes.append({
+                            "number": ep_num,
+                            "url": href if href.startswith("http") else f"{self.BASE_URL}{href}",
+                            "id": ep_id,
+                            "title": ep_title,
+                            "video_url": self._ep_video_cache.get(cache_key, ""),
+                        })
 
         detail["episodes"] = episodes
         return detail
+
+    def _parse_ac_episode_list(self, soup: BeautifulSoup, anime_slug: str = "") -> list[dict]:
+        """Parse episode links from .ac site's <ul> inside .server.active containers.
+
+        New .ac format uses short random IDs (e.g. /play/slug.SHORTID/ABc12) instead of ep-NUMERO.
+        Episodes are in <li><a href="/play/...">EP_NUM</a></li> inside server tab lists.
+        """
+        episodes = []
+        seen = set()
+
+        # Find all <ul> inside .widget-body that contain /play/ links
+        for ul in soup.find_all("ul"):
+            play_links = [
+                a for a in ul.find_all("a", href=True)
+                if "/play/" in a.get("href", "") and "animeworld.ac/play/" not in a.get("href", "").lower().replace("https://", "") or "/play/" in a.get("href", "")
+            ]
+            if not play_links or len(play_links) < 5:
+                continue
+
+            # Verify parent is a server container
+            parent = ul.parent
+            if not parent or "server" not in parent.get("class", []):
+                continue
+
+            for a in play_links:
+                href = a.get("href", "")
+                if not href.startswith("/"):
+                    continue
+                text = a.get_text(strip=True)
+                if not text:
+                    continue
+
+                # Extract short ID: /play/slug.ID/SHORTID
+                m = re.search(r"/play/[^/]+/([^/]+)", href)
+                if not m:
+                    continue
+                short_id = m.group(1)
+                if short_id in seen:
+                    continue
+                seen.add(short_id)
+
+                cache_key = f"{anime_slug or 'unknown'}-ep-{short_id}"
+                episodes.append({
+                    "number": text,
+                    "url": f"{self.BASE_URL}{href}",
+                    "id": f"ep-{short_id}",
+                    "title": text,
+                    "video_url": self._ep_video_cache.get(cache_key, ""),
+                })
+
+        return episodes
 
     def get_episode_video_url(self, episode_id: str, episode_url: str = None, anime_slug: str = None) -> dict:
         """Get the direct MP4 stream URL for an episode.
