@@ -38,11 +38,6 @@ HEADERS_BASE = {
     "Sec-Fetch-Site": "none",
     "Sec-Fetch-User": "?1",
 }
-HEADERS_JSON = {
-    **HEADERS_BASE,
-    "X-Requested-With": "XMLHttpRequest",
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-}
 
 
 class AnimeWorldScraper:
@@ -88,16 +83,27 @@ class AnimeWorldScraper:
 
     def _fetch(self, url: str, retries: int = 3, allow_redirects: bool = False) -> Optional[BeautifulSoup]:
         """Fetch HTML page. By default does NOT follow redirects to avoid
-        hitting episode pages when fetching anime detail pages."""
+        hitting episode pages when fetching anime detail pages from external sources.
+        However, official animeworld domains (.ac/.so/.tv) may redirect to the first
+        episode page (/play/slug.ID → /play/slug.ID/SHORTID), so we automatically
+        follow those redirects to get the actual anime detail page."""
         for attempt in range(1, retries + 1):
             try:
-                resp = self.session.get(url, timeout=self.timeout, allow_redirects=allow_redirects)
+                # For official domains, auto-follow 302 redirects to get past the
+                # /play/slug.ID → /play/slug.ID/SHORTID redirect to first episode
+                auto_follow = self.BASE_URL in (
+                    "https://www.animeworld.ac",
+                    "https://www.animeworld.so",
+                    "https://www.animeworld.tv",
+                )
+
+                resp = self.session.get(url, timeout=self.timeout, allow_redirects=auto_follow)
 
                 if resp.status_code == 200:
                     return BeautifulSoup(resp.text, "html.parser")
 
-                # Handle redirect manually only when explicitly allowed
-                if allow_redirects and resp.status_code in (301, 302) and resp.headers.get('Location'):
+                # Manual redirect handling only if not auto-following
+                if not auto_follow and resp.status_code in (301, 302) and resp.headers.get('Location'):
                     redirect_url = resp.headers['Location']
                     if not redirect_url.startswith('http'):
                         redirect_url = f"{self.BASE_URL.rstrip('/')}/{redirect_url.lstrip('/')}"
@@ -542,7 +548,7 @@ class AnimeWorldScraper:
             if val:
                 detail["rating"] = val
 
-        # Episodes — new .or.at site uses data-slug attributes on anchor tags
+        # Episodes — episodes use data-episode-id/data-id on .ac or data-slug on .or.at
         episodes = []
         seen_ep = set()
 
@@ -551,18 +557,29 @@ class AnimeWorldScraper:
         anime_slug = page_url_match.group(1) if page_url_match else ""
         base_url = self.BASE_URL.rstrip("/")
 
-        # Strategy 1: Parse from data-slug attributes (new .or.at format)
+        # Strategy 1: Parse from data-slug attributes (.or.at format)
+        # or data-episode-id + data-id attributes (.ac format)
         for a in soup.find_all("a", href=True):
+            # Try data-slug first (.or.at format)
             ep_num = a.get("data-slug", "")
             if not ep_num:
-                continue
+                # Try .ac format: data-episode-id + data-id
+                ep_id_val = a.get("data-episode-id", "")
+                ep_short_id = a.get("data-id", "")
+                if ep_id_val and ep_short_id:
+                    # Use episode number from data-episode-num or data-num
+                    ep_num_elem = a.get("data-episode-num") or a.get("data-num")
+                    ep_num = ep_num_elem if ep_num_elem else ep_short_id
+                else:
+                    continue
+
             ep_num_clean = str(ep_num).strip()
-            if ep_num_clean in seen_ep:
+            if not ep_num_clean or ep_num_clean in seen_ep:
                 continue
             seen_ep.add(ep_num_clean)
 
             ep_id = f"ep-{ep_num_clean}"
-            # Build episode URL: /watch/{anime_slug}/ep-{number}
+            # Build episode URL: /watch/{anime_slug}/ep-{number} or keep original
             ep_url = f"{base_url}/watch/{anime_slug}/ep-{ep_num_clean}" if anime_slug else ""
 
             # Cache key includes anime slug to avoid cross-anime collisions
@@ -595,14 +612,12 @@ class AnimeWorldScraper:
                     if ep_id and ep_id not in seen_ep:
                         seen_ep.add(ep_id)
                         ep_title = a.get_text(strip=True)
-                        # Cache key includes anime slug to avoid cross-anime collisions
-                        cache_key = f"{anime_slug or 'unknown'}-{ep_id}" if anime_slug else ep_id
                         episodes.append({
                             "number": ep_num,
                             "url": href if href.startswith("http") else f"{self.BASE_URL}{href}",
                             "id": ep_id,
                             "title": ep_title,
-                            "video_url": self._ep_video_cache.get(cache_key, ""),
+                            "video_url": self._ep_video_cache.get(ep_id, ""),
                         })
 
         detail["episodes"] = episodes
@@ -803,16 +818,16 @@ class AnimeWorldScraper:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
                 loop = asyncio.get_event_loop()
-        future = asyncio.run_coroutine_threadsafe(db.add_batch(anime_list), loop)
-        future.result()
-        logger.info("Database aggiornato con i nuovi episodi con successo.")
+            future = asyncio.run_coroutine_threadsafe(db.add_batch(anime_list), loop)
+            future.result()
+            logger.info("Database aggiornato con i nuovi episodi con successo.")
 
         for anime in anime_list:
             try:
                 url = anime.get("url")
                 if isinstance(url, str):
                     detail = self.get_anime_detail(url)
-                    eps = detail.get("episodes", [])
+                    eps = detail.get("episodes")
                     for ep in eps:
                         ep["anime_id"] = anime["id"]
                     if eps:
