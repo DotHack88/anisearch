@@ -49,6 +49,8 @@ class AnimeWorldScraper:
         self.session.headers.update(HEADERS_BASE)
         # Determina automaticamente quale dominio usare
         self.domain = self._detect_domain()
+        # In-memory cache for episode extplay links to avoid rate limiting
+        self._ep_video_cache: dict[str, str] = {}
 
     def _detect_domain(self) -> str:
         """Tenta ciascun dominio finché uno risponde con contenuto utile."""
@@ -499,6 +501,11 @@ class AnimeWorldScraper:
         seen_ep = set()
         ep_pattern = re.compile(r"(?:/ep-\d+|/episode/\d+|\.ep\d+|ep[-_]?\d+)")
 
+        # Collect extplay buttons per episode (needed because new .or.at hides video behind
+        # external-player redirects; the /api/episode/info endpoint no longer works there).
+        # We parse these on-the-fly and attach them as video_url so WatchPage can use them.
+        extplay_by_ep_id: dict[str, str] = {}
+
         # Method 1: find all links matching episode pattern
         for a in soup.find_all("a", href=True):
             href = a.get("href", "")
@@ -518,20 +525,101 @@ class AnimeWorldScraper:
                     "title": ep_title,
                 })
 
+        # Strategy: extract extplay links per episode from the page HTML
+        # New .or.at site hides videos behind third-party players; extplay buttons
+        # contain stable redirect URLs that work for playback.
+        # NOTE: extplay buttons appear in the PLAYER area of EACH EPISODE PAGE,
+        # not on the anime detail listing page. We scrape each episode page separately.
+        extplay_by_id: dict[str, str] = {}
+
+        # For each collected episode, fetch its page and extract the .ac extplay link
+        # This is intentional — the new site loads video sources dynamically via JS
+        for ep in episodes:
+            if ep["id"] in self._ep_video_cache:
+                extplay_by_id[ep["id"]] = self._ep_video_cache[ep["id"]]
+                continue
+            try:
+                ep_r = self.session.get(ep["url"], timeout=self.timeout)
+                if ep_r.status_code != 200:
+                    continue
+                ep_text = ep_r.text
+                # Match au-extplay-btn hrefs — prefer animeworld.ac domain
+                links = re.findall(
+                    r'<a\s+class="btn\s+btn-primary\s+au-extplay-btn"\s+href="([^"]+)"',
+                    ep_text,
+                )
+                if links:
+                    ac_links = [l for l in links if "animeworld.ac/play/" in l]
+                    url = ac_links[0] if ac_links else links[0]
+                    extplay_by_id[ep["id"]] = url
+                    self._ep_video_cache[ep["id"]] = url
+                time.sleep(self.delay)
+            except Exception:
+                continue
+
+        # Attach video_url to matching episodes
+        for ep in episodes:
+            if ep["id"] in extplay_by_id:
+                ep["video_url"] = extplay_by_id[ep["id"]]
+
         detail["episodes"] = episodes
         return detail
 
     def get_episode_video_url(self, episode_id: str) -> dict:
-        """Get the direct video stream URL from the episode info API."""
+        """Get the direct video stream URL for an episode.
+
+        Tries strategies in order:
+        1. Check in-memory cache populated during anime detail scrape
+        2. Old /api/episode/info?id=... grabber endpoint (legacy sites)
+        3. Fetch the episode page and extract au-extplay-btn href (.ac links work reliably)
+        Returns video_url="" on failure.
+        """
         result = {"video_url": "", "error": ""}
+
+        # Strategy 0: check in-memory cache first
+        if episode_id in self._ep_video_cache:
+            result["video_url"] = self._ep_video_cache[episode_id]
+            return result
+
+        # Strategy 1: old API (grabber-style, legacy domains)
         try:
             data = self._fetch_json(f"{self.BASE_URL}/api/episode/info?id={episode_id}")
-            if data and "grabber" in data:
+            if data and isinstance(data, dict) and data.get("grabber"):
                 result["video_url"] = data["grabber"]
-            else:
-                result["error"] = "Impossibile ottenere l'URL del video"
-        except Exception as e:
-            result["error"] = str(e)
+                return result
+        except Exception:
+            pass
+
+        # Strategy 2: fetch episode detail page and extract .ac extplay link
+        # episode_id is like 'ep-1'; we build the watch page URL from the known pattern
+        ep_num_match = re.match(r"ep-(\d+)", episode_id)
+        if ep_num_match:
+            ep_num = ep_num_match.group(1)
+            # Build URL: https://animeworld.or.at/watch/{slug}/ep-{num}
+            # We don't know the slug here; try common patterns
+            candidates = [
+                f"{self.BASE_URL}/{episode_id}",  # e.g. .../ep-1
+            ]
+            # Also try extracting from stored episode URLs in DB if accessible
+            for candidate_url in candidates:
+                try:
+                    r = self.session.get(candidate_url, timeout=self.timeout)
+                    if r.status_code != 200:
+                        continue
+                    text = r.text
+                    # Extract all extplay button hrefs — prefer .ac domain
+                    links = re.findall(
+                        r'<a\s+class="btn\s+btn-primary\s+au-extplay-btn"\s+href="([^"]+)"',
+                        text,
+                    )
+                    if links:
+                        ac_links = [l for l in links if "animeworld.ac/play/" in l]
+                        result["video_url"] = ac_links[0] if ac_links else links[0]
+                        return result
+                except Exception:
+                    continue
+
+        result["error"] = "视频流暂不可用"
         return result
 
     def scrape_latest_updates(self, db, loop=None) -> list[dict]:

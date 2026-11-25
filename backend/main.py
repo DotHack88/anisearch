@@ -568,22 +568,27 @@ async def anime_detail(anime_id: str):
 async def episode_video(request: Request, episode_id: str):
     """Get the direct video stream URL for an episode."""
     try:
-        # Enforce an absolute timeout of 20 seconds so we never hang indefinitely and cause 502s!
+        # First check if we already have a cached URL in the database
+        ep = await db.get_episode(episode_id)
+        if ep and ep.get("video_url"):
+            return {"video_url": ep["video_url"]}
+
+        # Otherwise fetch fresh from the source
         result = await asyncio.wait_for(
             asyncio.to_thread(scraper.get_episode_video_url, episode_id),
             timeout=20.0
         )
         if result.get("video_url"):
             return result
-        raise HTTPException(404, result.get("error", "Video non trovato"))
+        raise HTTPException(404, "Video no disponible actualmente. El sitio fuente puede estar temporalmente fuera de línea.")
     except asyncio.TimeoutError:
-        logger.error(f"Timeout video {episode_id} (oltre 20s)")
-        raise HTTPException(504, "Il server di origine ha impiegato troppo tempo a rispondere (Timeout)")
+        logger.error(f"Timeout video {episode_id} (más de 20s)")
+        raise HTTPException(504, "El servidor de origen ha tardado demasiado en responder (Timeout)")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Errore video {episode_id}: {e}")
-        raise HTTPException(500, "Errore nel recupero del video")
+        logger.error(f"Error video {episode_id}: {e}")
+        raise HTTPException(500, "Error al obtener el video")
 
 
 @app.get("/episode/{episode_id}/download")

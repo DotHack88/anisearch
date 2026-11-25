@@ -81,6 +81,7 @@ class Episode(SQLModel, table=True):
     season: Optional[int] = None
     episode: Optional[int] = None
     added_at: Optional[str] = None  # SQLite timestamp default handled by DB
+    video_url: Optional[str] = None  # Cached extplay/streaming URL for playback
 
 class WatchProgress(SQLModel, table=True):
     session_id: str = Field(primary_key=True)
@@ -227,6 +228,26 @@ class AnimeDatabase:
         async with AsyncSession(engine) as session:
             result = await session.exec(select(func.count()).select_from(Episode))
             return result.one()
+
+    async def get_episode(self, episode_id: str) -> Optional[dict]:
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = select(Episode).where(Episode.id == episode_id)
+            ep = (await session.exec(stmt)).first()
+            if not ep:
+                return None
+            row = {
+                "id": ep.id,
+                "anime_id": ep.anime_id,
+                "title": ep.title,
+                "url": ep.url,
+                "season": ep.season,
+                "episode": ep.episode,
+                "added_at": ep.added_at,
+                "video_url": ep.video_url,
+            }
+            # Drop nulls for cleanliness
+            return {k: v for k, v in row.items() if v is not None}
 
     async def clear(self) -> None:
         await self._ensure_init()
@@ -467,6 +488,7 @@ class AnimeDatabase:
                 "season": self._to_int(ep.get("season")),
                 "episode": self._to_int(ep.get("episode") or ep.get("number")),
                 "added_at": ep.get("added_at"),
+                "video_url": ep.get("video_url", ""),
             }
             for ep in episodes
             if ep.get("id") and ep.get("anime_id")
