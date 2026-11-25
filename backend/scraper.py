@@ -50,6 +50,8 @@ class AnimeWorldScraper:
         # Determina automaticamente quale dominio usare
         self.domain = self._detect_domain()
         # In-memory cache for episode extplay links to avoid rate limiting
+        # Key format: "{anime_slug}-{episode_id}" to avoid cross-anime collisions
+        # (e.g., "ep-1" exists for every anime)
         self._ep_video_cache: dict[str, str] = {}
 
     def _detect_domain(self) -> str:
@@ -519,12 +521,14 @@ class AnimeWorldScraper:
             # Build episode URL: /watch/{anime_slug}/ep-{number}
             ep_url = f"{base_url}/watch/{anime_slug}/ep-{ep_num_clean}" if anime_slug else ""
 
+            # Cache key includes anime slug to avoid cross-anime collisions
+            cache_key = f"{anime_slug or 'unknown'}-{ep_id}" if anime_slug else ep_id
             episodes.append({
                 "number": ep_num_clean,
                 "url": ep_url,
                 "id": ep_id,
                 "title": a.get_text(strip=True),
-                "video_url": self._ep_video_cache.get(ep_id, ""),
+                "video_url": self._ep_video_cache.get(cache_key, ""),
             })
 
         # If no episodes found, try legacy link parsing as fallback
@@ -540,31 +544,39 @@ class AnimeWorldScraper:
                 if ep_id and ep_id not in seen_ep:
                     seen_ep.add(ep_id)
                     ep_title = a.get_text(strip=True)
+                    # Cache key includes anime slug to avoid cross-anime collisions
+                    cache_key = f"{anime_slug or 'unknown'}-{ep_id}" if anime_slug else ep_id
                     episodes.append({
                         "number": ep_num,
                         "url": href if href.startswith("http") else f"{self.BASE_URL}{href}",
                         "id": ep_id,
                         "title": ep_title,
-                        "video_url": self._ep_video_cache.get(ep_id, ""),
+                        "video_url": self._ep_video_cache.get(cache_key, ""),
                     })
 
         detail["episodes"] = episodes
         return detail
 
-    def get_episode_video_url(self, episode_id: str, episode_url: str = None) -> dict:
+    def get_episode_video_url(self, episode_id: str, episode_url: str = None, anime_slug: str = None) -> dict:
         """Get the direct MP4 stream URL for an episode.
 
         Resolution chain:
-        1. In-memory cache hit → return immediately
+        1. In-memory cache hit → return immediately (cache key: "{anime_slug}-{episode_id}")
         2. Try .ac API directly (works for legacy short IDs like "ZXFbr")
         3. Fetch episode page via provided episode_url → extract au-extplay-btn → call AC API → MP4
         4. Return empty string on failure
         """
         result = {"video_url": "", "error": ""}
 
-        # 1. Memory cache
-        if episode_id in self._ep_video_cache:
-            result["video_url"] = self._ep_video_cache[episode_id]
+        # 1. Memory cache - use slug-aware key to avoid cross-anime collisions
+        # Auto-extract anime slug from episode_url if not provided (e.g., /watch/{slug}/ep-N)
+        resolved_slug = anime_slug
+        if not resolved_slug and episode_url:
+            slug_match = re.search(r'/watch/([^/]+)/ep', episode_url)
+            resolved_slug = slug_match.group(1) if slug_match else None
+        cache_key = f"{resolved_slug or 'unknown'}-{episode_id}" if resolved_slug else episode_id
+        if cache_key in self._ep_video_cache:
+            result["video_url"] = self._ep_video_cache[cache_key]
             return result
 
         # 2. Direct .ac API (legacy short IDs)
@@ -572,7 +584,7 @@ class AnimeWorldScraper:
             data = self._fetch_json(f"https://www.animeworld.ac/api/episode/info?id={episode_id}")
             if data and isinstance(data, dict) and data.get("grabber"):
                 result["video_url"] = data["grabber"]
-                self._ep_video_cache[episode_id] = result["video_url"]
+                self._ep_video_cache[cache_key] = result["video_url"]
                 return result
         except Exception:
             pass
@@ -590,18 +602,21 @@ class AnimeWorldScraper:
                 return result
 
             text = r.text
-            # Match au-extplay-btn href — prefer animeworld.ac/play links
-            m = re.search(
+            # Match au-extplay-btn links — MUST be animeworld.ac/play (not .or.at)
+            all_links = re.findall(
                 r'<a\s+class="btn\s+btn-primary\s+au-extplay-btn"[^>]*href=["\']([^"\']+)["\']',
                 text, re.I
             )
-            if not m:
-                m = re.search(r'au-extplay-btn[^>]*href=["\']([^"\']+)["\']', text)
-            if not m:
-                result["error"] = "未在页面中找到播放按钮"
+            if not all_links:
+                all_links = re.findall(r'au-extplay-btn[^>]*href=["\']([^"\']+)["\']', text)
+
+            # Filter to only .ac domain links (they work with the AC API)
+            ac_links = [l for l in all_links if "animeworld.ac/play/" in l]
+            if not ac_links:
+                result["error"] = "Nessun link compatibile trovato nella pagina"
                 return result
 
-            play_url = m.group(1)
+            play_url = ac_links[0]
             if not play_url.startswith("http"):
                 play_url = self.BASE_URL.rstrip("/") + play_url
 
@@ -618,7 +633,7 @@ class AnimeWorldScraper:
             if api_data and isinstance(api_data, dict) and api_data.get("grabber"):
                 mp4_url = api_data["grabber"]
                 result["video_url"] = mp4_url
-                self._ep_video_cache[episode_id] = mp4_url
+                self._ep_video_cache[cache_key] = mp4_url
                 return result
             else:
                 result["error"] = "AC API 未返回视频地址"
