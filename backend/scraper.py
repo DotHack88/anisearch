@@ -1,7 +1,7 @@
 """
 AnimeWorld Scraper — BeautifulSoup + requests
-Supporta i domini animeworld.or.at (primario, Laravel con API AJAX) e
-animeworld.ac (fallback, struttura SSR parziale).
+Supporta i domini ufficiali animeworld.ac, .so, .tv (https://www.animeworlditalia.com/)
+e il dominio Laravel animeworld.or.at per la ricerca AJAX.
 Estrae metadati (generi, stato, anno) dalla pagina dettaglio anime.
 """
 
@@ -16,11 +16,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
-# Domini disponibili — usati in ordine di priorità
-DOMAINS = [
-    "https://animeworld.or.at",   # primario, Laravel + AJAX
-    "https://www.animeworld.ac",  # fallback SSR
+# Domini ufficiali (https://www.animeworlditalia.com/): .ac .so .tv
+# .or.at = dominio Laravel usato solo per AJAX search
+OFFICIAL_DOMAINS = [
+    "https://www.animeworld.ac",
+    "https://www.animeworld.so",
+    "https://www.animeworld.tv",
 ]
+AJAX_FALLBACK = "https://animeworld.or.at"
+DOMAINS = OFFICIAL_DOMAINS + [AJAX_FALLBACK]
 
 AZ_LETTERS = ["0-9"] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 HEADERS_BASE = {
@@ -221,12 +225,16 @@ class AnimeWorldScraper:
     def search(self, keyword: str, limit: int = 20) -> list[dict]:
         """Search for an anime using the AJAX search endpoint.
 
-        Note: The .ac domain doesn't support /ajax/anime/search.
-        We always use .or.at for searching since it has the AJAX endpoint.
+        Note: Official domains (.ac/.so/.tv) don't support /ajax/anime/search.
+        We fall back to .or.at for searching since it has the AJAX endpoint.
         """
-        # Always use .or.at for AJAX search since .ac doesn't have this endpoint
-        url = f"https://animeworld.or.at/ajax/anime/search?keyword={requests.utils.quote(keyword)}"
-        data = self._fetch_json(url)
+        # Try official domain first (may not have AJAX), then .or.at
+        ajax_url = f"{self.BASE_URL}/ajax/anime/search?keyword={requests.utils.quote(keyword)}"
+        data = self._fetch_json(ajax_url)
+        if not data or not data.get("result", {}).get("html"):
+            # Fallback to .or.at AJAX search
+            logger.info("AJAX search not available on current domain, trying .or.at...")
+            data = self._fetch_json(f"{AJAX_FALLBACK}/ajax/anime/search?keyword={requests.utils.quote(keyword)}")
         if not data:
             return []
         html = data.get("result", {}).get("html", "")
@@ -453,16 +461,19 @@ class AnimeWorldScraper:
         soup = self._fetch(anime_url)
         detail = self._parse_detail(soup, anime_url)
 
-        # If too few episodes, try fallback domain (.ac)
-        if len(detail.get("episodes", [])) < 5 and self.BASE_URL != DOMAINS[1]:
-            logger.info(f"Few episodes ({len(detail.get('episodes', []))}) on {self.BASE_URL}, trying fallback...")
-            fallback_url = anime_url.replace(DOMAINS[0], DOMAINS[1])
-            fallback_soup = self._fetch(fallback_url)
-            if fallback_soup:
-                fallback_detail = self._parse_detail(fallback_soup, fallback_url)
-                if len(fallback_detail.get("episodes", [])) > len(detail.get("episodes", [])):
-                    logger.info(f"Fallback to {DOMAINS[1]} found more episodes")
-                    detail = fallback_detail
+        # If too few episodes, try other official domains or AJAX fallback
+        if len(detail.get("episodes", [])) < 5:
+            for alt_domain in DOMAINS:
+                if alt_domain == self.BASE_URL:
+                    continue
+                fallback_url = anime_url.replace(self.BASE_URL, alt_domain)
+                fallback_soup = self._fetch(fallback_url)
+                if fallback_soup:
+                    fallback_detail = self._parse_detail(fallback_soup, fallback_url)
+                    if len(fallback_detail.get("episodes", [])) > len(detail.get("episodes", [])):
+                        logger.info(f"Fallback to {alt_domain} found more episodes")
+                        detail = fallback_detail
+                        break
 
         return detail
 
