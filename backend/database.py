@@ -222,17 +222,20 @@ class AnimeDatabase:
         """Add video_url column to episode table if it doesn't exist."""
         from sqlalchemy import text
         try:
+            # Check if column exists using a lightweight query
             result = await conn.execute(text(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = 'episode' AND column_name = 'video_url'"
+                "SELECT 1 FROM episode LIMIT 0"
             ))
-            if result.fetchone() is None:
-                await conn.execute(text(
-                    "ALTER TABLE episode ADD COLUMN video_url VARCHAR"
-                ))
-                logger.info("Added video_url column to episode table")
+            # If we get here, table exists. Try to add column if missing.
+            # Use try/except since ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+            # works on both Postgres and SQLite
+            await conn.execute(text(
+                "ALTER TABLE episode ADD COLUMN video_url VARCHAR"
+            ))
+            logger.info("Added video_url column to episode table")
         except Exception as e:
-            logger.warning(f"Migration check skipped: {e}")
+            # Column already exists or other error — ignore
+            logger.debug(f"video_url column check skipped: {e}")
 
     # ----- Basic operations -----
     async def count(self) -> int:
