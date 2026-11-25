@@ -249,6 +249,19 @@ class AnimeDatabase:
             # Drop nulls for cleanliness
             return {k: v for k, v in row.items() if v is not None}
 
+    async def update_episode_video_url(self, episode_id: str, video_url: str) -> None:
+        """Save a resolved video URL back to the Episode table."""
+        await self._ensure_init()
+        async with AsyncSession(engine) as session:
+            stmt = (
+                update(Episode)
+                .where(Episode.id == episode_id)
+                .values(video_url=video_url)
+            )
+            await session.exec(stmt)
+            await session.commit()
+            logger.info(f"Saved video_url for episode {episode_id}")
+
     async def clear(self) -> None:
         await self._ensure_init()
         async with AsyncSession(engine) as session:

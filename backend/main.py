@@ -573,12 +573,16 @@ async def episode_video(request: Request, episode_id: str):
         if ep and ep.get("video_url"):
             return {"video_url": ep["video_url"]}
 
-        # Otherwise fetch fresh from the source
+        # Otherwise fetch fresh from the source (pass episode_url from DB so scraper can find the page)
+        episode_url = ep["url"] if ep and ep.get("url") else None
         result = await asyncio.wait_for(
-            asyncio.to_thread(scraper.get_episode_video_url, episode_id),
+            asyncio.to_thread(scraper.get_episode_video_url, episode_id, episode_url),
             timeout=20.0
         )
         if result.get("video_url"):
+            # Save resolved URL to DB for future requests
+            if ep:
+                await db.update_episode_video_url(episode_id, result["video_url"])
             return result
         raise HTTPException(404, "Video no disponible actualmente. El sitio fuente puede estar temporalmente fuera de línea.")
     except asyncio.TimeoutError:
