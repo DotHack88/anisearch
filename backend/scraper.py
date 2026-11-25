@@ -82,27 +82,29 @@ class AnimeWorldScraper:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _fetch(self, url: str, retries: int = 3) -> Optional[BeautifulSoup]:
+    def _fetch(self, url: str, retries: int = 3, allow_redirects: bool = False) -> Optional[BeautifulSoup]:
+        """Fetch HTML page. By default does NOT follow redirects to avoid
+        hitting episode pages when fetching anime detail pages."""
         for attempt in range(1, retries + 1):
             try:
-                resp = self.session.get(url, timeout=self.timeout)
-                # Follow redirects manually in a loop to handle multi-hop redirects
-                while resp.status_code in (301, 302) and resp.headers.get('Location'):
+                resp = self.session.get(url, timeout=self.timeout, allow_redirects=allow_redirects)
+
+                if resp.status_code == 200:
+                    return BeautifulSoup(resp.text, "html.parser")
+
+                # Handle redirect manually only when explicitly allowed
+                if allow_redirects and resp.status_code in (301, 302) and resp.headers.get('Location'):
                     redirect_url = resp.headers['Location']
                     if not redirect_url.startswith('http'):
                         redirect_url = f"{self.BASE_URL.rstrip('/')}/{redirect_url.lstrip('/')}"
-                    resp = self.session.get(redirect_url, timeout=self.timeout)
+                    resp = self.session.get(redirect_url, timeout=self.timeout, allow_redirects=False)
+                    if resp.status_code == 200:
+                        return BeautifulSoup(resp.text, "html.parser")
 
-                if resp.status_code != 200:
-                    raise requests.exceptions.HTTPError(f"HTTP {resp.status_code}")
-
-                return BeautifulSoup(resp.text, "html.parser")
-            except requests.exceptions.HTTPError as e:
-                code = e.response.status_code if e.response is not None else 500
-                if code == 403:
+                if resp.status_code == 403:
                     logger.warning(f"403 su {url}")
                     return None
-                logger.warning(f"HTTP {code} su {url} (tentativo {attempt})")
+                logger.warning(f"HTTP {resp.status_code} su {url} (tentativo {attempt})")
                 if attempt < retries:
                     time.sleep(self.delay * attempt)
             except requests.exceptions.RequestException as e:
